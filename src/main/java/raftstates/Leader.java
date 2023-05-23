@@ -90,7 +90,7 @@ public class Leader extends RaftServer {
     private Behavior<RaftMessage> dispatch(RaftMessage message){
         if (!this.failFlag.failed) {
             switch (message) {
-                case RaftMessage.ClientRequest msg:
+                case RaftMessage.ClientUpdateRequest msg:
                     handleClientRequest(msg);
                     break;
                 case RaftMessage.AppendEntries msg:
@@ -130,7 +130,7 @@ public class Leader extends RaftServer {
         }
     }
 
-    private void handleClientRequest(RaftMessage.ClientRequest msg) {
+    private void handleClientRequest(RaftMessage.ClientUpdateRequest msg) {
         getContext().getLog().info("LEADER Receiving client request leaderID: " + getContext().getSelf().path().uid());
         Entry entry = new Entry(this.currentTerm, msg.command());
         if (!isDuplicate(msg)) {
@@ -187,7 +187,7 @@ public class Leader extends RaftServer {
     private void sendClientResponsesForNewCommittedRequests(int oldCommit, int newCommit) {
         for (int i = oldCommit + 1; i <= newCommit; i++){
             ActorRef<ClientMessage> client =  refResolver.resolveActorRef(this.log.get(i).command().getClientRef());
-            client.tell(new ClientMessage.ClientResponse(true, this.log.get(i).command().getCommandID()));
+            client.tell(new ClientMessage.ClientUpdateResponse(true, this.log.get(i).command().getCommandID()));
         }
     }
 
@@ -227,8 +227,8 @@ public class Leader extends RaftServer {
                 this.dataManager.saveLog(this.log);
                 this.initializeNextIndex();
                 break;
-            case RaftMessage.TestMessage.GetStateMachineCommands msg:
-                msg.sender().tell(new RaftMessage.TestMessage.GetStateMachineCommandsResponse(this.stateMachine.getState()));
+            case RaftMessage.TestMessage.GetStateMachineState msg:
+                msg.sender().tell(new RaftMessage.TestMessage.GetStateMachineStateResponse(this.stateMachine.getState()));
                 break;
             case RaftMessage.TestMessage.GetState msg:
                 msg.sender().tell(new RaftMessage.TestMessage.GetStateResponse(this.currentTerm, this.votedFor, this.log, this.commitIndex, this.lastApplied));

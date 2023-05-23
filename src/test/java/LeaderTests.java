@@ -181,7 +181,7 @@ public class LeaderTests {
         List<ActorRef<RaftMessage>> groupRefs = getSingleProbeGroupRefs();
         leader = getLeader(groupRefs, 1);
         Command command = getCommand();
-        leader.tell(new RaftMessage.ClientRequest(client.ref(), command));
+        leader.tell(new RaftMessage.ClientUpdateRequest(client.ref(), command));
         List<Entry> expectedEntries = new ArrayList<>();
         expectedEntries.add(new Entry(1, command));
         int term = 1;
@@ -198,7 +198,7 @@ public class LeaderTests {
         leader = getLeader(groupRefs, 2);
         leader.tell(new RaftMessage.TestMessage.SaveEntries(leaderLog));
         Command command = getCommand();
-        leader.tell(new RaftMessage.ClientRequest(null, command));
+        leader.tell(new RaftMessage.ClientUpdateRequest(null, command));
         List<Entry> expectedEntries = new ArrayList<>();
         expectedEntries.add(new Entry(2, command));
         probe.expectMessage(getHeartBeatMessage(2, leader, -1));
@@ -216,7 +216,7 @@ public class LeaderTests {
         leader.tell(new RaftMessage.TestMessage.SaveEntries(leaderLog));
 
         Command command = getCommand();
-        leader.tell(new RaftMessage.ClientRequest(null, command));
+        leader.tell(new RaftMessage.ClientUpdateRequest(null, command));
 
         List<Entry> expectedEntries = new ArrayList<>();
         expectedEntries.add(new Entry(2, command));
@@ -243,7 +243,7 @@ public class LeaderTests {
         leader.tell(new RaftMessage.TestMessage.SaveEntries(leaderLog));
 
         Command command = getCommand();
-        leader.tell(new RaftMessage.ClientRequest(null, command));
+        leader.tell(new RaftMessage.ClientUpdateRequest(null, command));
 
         List<Entry> expectedEntries = new ArrayList<>();
         expectedEntries.add(new Entry(2, command));
@@ -266,7 +266,7 @@ public class LeaderTests {
         List<TestProbe<RaftMessage>> probes = getProbeGroup(4);
         List<ActorRef<RaftMessage>> groupRefs = getProbeGroupRefs(probes);
         leader = testKit.spawn(Leader.create(new ServerFileWriter(), new CommandList(), new Object(),new FailFlag(), 1, groupRefs, -1, -1));
-        leader.tell(new RaftMessage.ClientRequest(client.ref(), getCommand()));
+        leader.tell(new RaftMessage.ClientUpdateRequest(client.ref(), getCommand()));
         leader.tell(new RaftMessage.AppendEntriesResponse(groupRefs.get(0), 1, true, 1));
         leader.tell(new RaftMessage.AppendEntriesResponse(groupRefs.get(1), 1, false, 0));
         leader.tell(new RaftMessage.AppendEntriesResponse(groupRefs.get(2), 1, false, 0));
@@ -279,10 +279,10 @@ public class LeaderTests {
         List<TestProbe<RaftMessage>> probes = getProbeGroup(4);
         List<ActorRef<RaftMessage>> groupRefs = getProbeGroupRefs(probes);
         leader = testKit.spawn(Leader.create(new ServerFileWriter(), new CommandList(), new Object(), new FailFlag(),1, groupRefs, -1, -1));
-        leader.tell(new RaftMessage.ClientRequest(clientProbe.ref(), getCommand()));
+        leader.tell(new RaftMessage.ClientUpdateRequest(clientProbe.ref(), getCommand()));
         leader.tell(new RaftMessage.AppendEntriesResponse(groupRefs.get(0), 1, true, 0));
         leader.tell(new RaftMessage.AppendEntriesResponse(groupRefs.get(1), 1, true, 0));
-        clientProbe.expectMessage(new ClientMessage.ClientResponse(true, 0));
+        clientProbe.expectMessage(new ClientMessage.ClientUpdateResponse(true, 0));
     }
 
 
@@ -292,14 +292,14 @@ public class LeaderTests {
         List<ActorRef<RaftMessage>> groupRefs = getProbeGroupRefs(probes);
         leader = testKit.spawn(Leader.create(new ServerFileWriter(), new CommandList(), new Object(),new FailFlag(), 1, groupRefs, -1, -1));
         Command command = getCommand();
-        leader.tell(new RaftMessage.ClientRequest(clientProbe.ref(), command));
+        leader.tell(new RaftMessage.ClientUpdateRequest(clientProbe.ref(), command));
         leader.tell(new RaftMessage.AppendEntriesResponse(groupRefs.get(0), 1, true, 0));
         leader.tell(new RaftMessage.AppendEntriesResponse(groupRefs.get(1), 1, true, 0));
-        clientProbe.expectMessage(new ClientMessage.ClientResponse(true, 0));
-        leader.tell(new RaftMessage.TestMessage.GetStateMachineCommands(probeRef));
+        clientProbe.expectMessage(new ClientMessage.ClientUpdateResponse(true, 0));
+        leader.tell(new RaftMessage.TestMessage.GetStateMachineState(probeRef));
         List<Command> expectedCommands = new ArrayList<>();
         expectedCommands.add(command);
-        probe.expectMessage(new RaftMessage.TestMessage.GetStateMachineCommandsResponse(expectedCommands));
+        probe.expectMessage(new RaftMessage.TestMessage.GetStateMachineStateResponse(expectedCommands));
     }
 
     @Test

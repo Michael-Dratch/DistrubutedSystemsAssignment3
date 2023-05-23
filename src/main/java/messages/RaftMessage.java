@@ -10,7 +10,11 @@ import java.util.List;
 
 public interface RaftMessage {
 
-    public record ClientRequest(ActorRef<ClientMessage> clientRef, Command command) implements RaftMessage {}
+    public record ClientUpdateRequest(ActorRef<ClientMessage> clientRef, Command command) implements RaftMessage {}
+
+    public record ClientCommittedReadRequest(ActorRef<ClientMessage> clientRef) implements RaftMessage {}
+
+    public record ClientUnstableReadRequest(ActorRef<ClientMessage> clientRef) implements RaftMessage {}
 
     public record AppendEntries(int term,
                                 ActorRef<RaftMessage> leaderRef,
@@ -54,8 +58,8 @@ public interface RaftMessage {
         public record GetLogResponse(List<Entry> log) implements TestMessage{}
         public record GetCommitIndex(ActorRef<RaftMessage> sender) implements TestMessage {}
         public record GetCommitIndexResponse(int commitIndex) implements TestMessage {}
-        public record GetStateMachineCommands(ActorRef<RaftMessage> sender) implements TestMessage {}
-        public record GetStateMachineCommandsResponse(Object commands) implements TestMessage {}
+        public record GetStateMachineState(ActorRef<RaftMessage> sender) implements TestMessage {}
+        public record GetStateMachineStateResponse<stateType>(stateType state) implements TestMessage {}
 
         public record SaveEntries(List<Entry> entries) implements TestMessage {}
         public record testFail() implements TestMessage {}

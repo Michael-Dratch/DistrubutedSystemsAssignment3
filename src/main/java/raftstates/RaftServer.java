@@ -14,6 +14,7 @@ import statemachine.Entry;
 import statemachine.StateMachine;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
@@ -163,7 +164,7 @@ abstract class RaftServer extends AbstractBehavior<RaftMessage> {
         else return this.log.get(this.log.size() - 1).term();
     }
 
-    protected boolean isDuplicate(RaftMessage.ClientRequest msg) {
+    protected boolean isDuplicate(RaftMessage.ClientUpdateRequest msg) {
         boolean isDuplicate = false;
         for (Entry e : this.log){
             if (e.command().equals(msg.command())){

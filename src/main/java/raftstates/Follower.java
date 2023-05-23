@@ -37,13 +37,14 @@ public class Follower extends RaftServer {
 
     protected Follower(ActorContext<RaftMessage> context, TimerScheduler<RaftMessage> timers, ServerDataManager dataManager, StateMachine stateMachine, FailFlag failFlag){
         super(context, timers, dataManager, stateMachine, failFlag,  -1,-1);
-        requestBuffer = new ArrayList<>();
+        updateRequestBuffer = new ArrayList<>();
         currentLeader = null;
     }
 
     private ActorRef<RaftMessage> currentLeader;
 
-    private List<RaftMessage.ClientRequest> requestBuffer;
+    private List<RaftMessage.ClientUpdateRequest> updateRequestBuffer;
+    private List<RaftMessage.ClientCommittedReadRequest> committedReadBuffer;
 
 
     private Behavior<RaftMessage> dispatch(RaftMessage message){
@@ -67,9 +68,17 @@ public class Follower extends RaftServer {
                     getContext().getLog().info("TIMEOUT STARTING ELECTION " + getContext().getSelf().path().uid());
                     sendBufferedRequestsToSelf();
                     return Candidate.create(this.dataManager, this.stateMachine, this.failFlag, this.TIMER_KEY, this.currentTerm, this.groupRefs, this.commitIndex, this.lastApplied);
-                case RaftMessage.ClientRequest msg:
+                case RaftMessage.ClientUpdateRequest msg:
                     getContext().getLog().info("RECEIVED CLIENT REQUEST");
-                    handleClientRequest(msg);
+                    handleClientUpdateRequest(msg);
+                    break;
+                case RaftMessage.ClientCommittedReadRequest msg:
+                    getContext().getLog().info("RECEIVED CLIENT Stable Read REQUEST");
+                    handleClientCommittedReadRequest(msg);
+                    break;
+                case RaftMessage.ClientUnstableReadRequest msg:
+                    getContext().getLog().info("RECEIVED CLIENT UNSTABLE READ REQUEST");
+                    handleUnstableReadRequest(msg);
                     break;
                 case RaftMessage.TestMessage msg:
                     handleTestMessage(msg);
@@ -136,10 +145,10 @@ public class Follower extends RaftServer {
 
     private void forwardBufferedRequests(RaftMessage.AppendEntries msg) {
         getContext().getLog().info("FORWARDING BUFFERED REQUESTS TO LEADER");
-        for (RaftMessage.ClientRequest request : requestBuffer){
+        for (RaftMessage.ClientUpdateRequest request : updateRequestBuffer){
             msg.leaderRef().tell(request);
         }
-        requestBuffer.clear();
+        updateRequestBuffer.clear();
     }
 
     private boolean entryIndexExceedsLogSize(RaftMessage.AppendEntries msg, int i) {
@@ -198,16 +207,28 @@ public class Follower extends RaftServer {
         msg.candidateRef().tell(new RaftMessage.RequestVoteResponse(this.currentTerm, voteGranted));
     }
 
-    private void handleClientRequest(RaftMessage.ClientRequest msg) {
+    private void handleClientUpdateRequest(RaftMessage.ClientUpdateRequest msg) {
         if (currentLeader != null) {
             getContext().getLog().info("FORWARDING REQUEST TO LEADER");
             this.currentLeader.tell(msg);
         }
-        else requestBuffer.add(msg);
+        else updateRequestBuffer.add(msg);
+    }
+
+    private void handleClientCommittedReadRequest(RaftMessage.ClientCommittedReadRequest msg) {
+        if (currentLeader != null) {
+            getContext().getLog().info("FORWARDING READ REQUEST TO LEADER");
+            this.currentLeader.tell(msg);
+        }
+        else committedReadBuffer.add(msg);
+    }
+
+    private void handleUnstableReadRequest(RaftMessage.ClientUnstableReadRequest msg){
+        System.out.println("Got Unstable Read Request");
     }
 
     private void sendBufferedRequestsToSelf() {
-        for (RaftMessage.ClientRequest request : requestBuffer){
+        for (RaftMessage.ClientUpdateRequest request : updateRequestBuffer){
             getContext().getSelf().tell(request);
         }
     }
@@ -218,8 +239,8 @@ public class Follower extends RaftServer {
             case RaftMessage.TestMessage.GetBehavior msg:
                 msg.sender().tell(new RaftMessage.TestMessage.GetBehaviorResponse("FOLLOWER"));
                 break;
-            case RaftMessage.TestMessage.GetStateMachineCommands msg:
-                msg.sender().tell(new RaftMessage.TestMessage.GetStateMachineCommandsResponse(this.stateMachine.getState()));
+            case RaftMessage.TestMessage.GetStateMachineState msg:
+                msg.sender().tell(new RaftMessage.TestMessage.GetStateMachineStateResponse(this.stateMachine.getState()));
                 break;
             case RaftMessage.TestMessage.GetState msg:
                 msg.sender().tell(new RaftMessage.TestMessage.GetStateResponse(this.currentTerm, this.votedFor, this.log, this.commitIndex, this.lastApplied));

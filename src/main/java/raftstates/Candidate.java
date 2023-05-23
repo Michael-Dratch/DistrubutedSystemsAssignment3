@@ -10,7 +10,6 @@ import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.javadsl.TimerScheduler;
 import datapersistence.ServerDataManager;
 import messages.RaftMessage;
-import statemachine.Command;
 import statemachine.StateMachine;
 
 import java.util.ArrayList;
@@ -42,7 +41,7 @@ public class Candidate extends RaftServer {
     private int votesReceived;
     private int votesRequired;
 
-    private List<RaftMessage.ClientRequest> requestBuffer;
+    private List<RaftMessage.ClientUpdateRequest> requestBuffer;
 
 
 
@@ -101,7 +100,7 @@ public class Candidate extends RaftServer {
                     handleTimeOut();
                     votesReceived = 0;
                     break;
-                case RaftMessage.ClientRequest msg:
+                case RaftMessage.ClientUpdateRequest msg:
                     getContext().getLog().info("RECEIVED CLIENT REQUEST");
                     handleClientRequest(msg);
                     break;
@@ -126,12 +125,12 @@ public class Candidate extends RaftServer {
     }
 
     private void sendBufferedRequests(ActorRef<RaftMessage> leader) {
-        for (RaftMessage.ClientRequest request : requestBuffer){
+        for (RaftMessage.ClientUpdateRequest request : requestBuffer){
             leader.tell(request);
         }
     }
 
-    private void handleClientRequest(RaftMessage.ClientRequest msg) {
+    private void handleClientRequest(RaftMessage.ClientUpdateRequest msg) {
         requestBuffer.add(msg);
     }
 
@@ -158,8 +157,8 @@ public class Candidate extends RaftServer {
             case RaftMessage.TestMessage.GetBehavior msg:
                 msg.sender().tell(new RaftMessage.TestMessage.GetBehaviorResponse("CANDIDATE"));
                 break;
-            case RaftMessage.TestMessage.GetStateMachineCommands msg:
-                msg.sender().tell(new RaftMessage.TestMessage.GetStateMachineCommandsResponse((this.stateMachine.getState())));
+            case RaftMessage.TestMessage.GetStateMachineState msg:
+                msg.sender().tell(new RaftMessage.TestMessage.GetStateMachineStateResponse((this.stateMachine.getState())));
                 break;
             default:
                 break;

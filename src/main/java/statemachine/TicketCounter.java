@@ -5,11 +5,12 @@ import java.util.List;
 public class TicketCounter implements StateMachine<Integer, CounterCommand> {
 
     private Integer count;
-    private Integer initialCount;
 
-    public TicketCounter(int initialCount){
-        this.initialCount = initialCount;
-        this.count = initialCount;
+    private Integer initialState;
+
+    public TicketCounter(int count){
+        this.count = count;
+        this.initialState = count;
     }
 
     @Override
@@ -31,6 +32,6 @@ public class TicketCounter implements StateMachine<Integer, CounterCommand> {
 
     @Override
     public void resetState() {
-        this.count = this.initialCount;
+        this.count = this.initialState;
     }
 }

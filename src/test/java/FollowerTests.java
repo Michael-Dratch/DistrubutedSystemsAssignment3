@@ -502,8 +502,8 @@ public class FollowerTests {
         groupRefs.add(follower);
         ActorRef<RaftMessage> leader = testKit.spawn(Leader.create(new ServerFileWriter(), new CommandList(), new Object(), new FailFlag(), 1, groupRefs, -1, -1));
         follower.tell(new RaftMessage.AppendEntries(1, leader,-1, -1, new ArrayList<>(), -1));
-        follower.tell(new RaftMessage.ClientRequest(clientProbe.ref(), new StringCommand(refResolver.toSerializationFormat(clientProbe.ref()),0,"Test")));
-        clientProbe.expectMessage(new ClientMessage.ClientResponse(true, 0));
+        follower.tell(new RaftMessage.ClientUpdateRequest(clientProbe.ref(), new StringCommand(refResolver.toSerializationFormat(clientProbe.ref()),0,"Test")));
+        clientProbe.expectMessage(new ClientMessage.ClientUpdateResponse(true, 0));
     }
 
     @Test
@@ -514,15 +514,15 @@ public class FollowerTests {
         entries.add(entry);
         follower.tell(new RaftMessage.AppendEntries(1,probeRef, -1, -1, entries, -1));
         probe.receiveMessage();
-        follower.tell(new RaftMessage.TestMessage.GetStateMachineCommands(probeRef));
-        RaftMessage.TestMessage.GetStateMachineCommandsResponse beforeCommit =  (RaftMessage.TestMessage.GetStateMachineCommandsResponse) probe.receiveMessage();
-        assertEquals(0, ((List<Command>)beforeCommit.commands()).size());
+        follower.tell(new RaftMessage.TestMessage.GetStateMachineState(probeRef));
+        RaftMessage.TestMessage.GetStateMachineStateResponse beforeCommit =  (RaftMessage.TestMessage.GetStateMachineStateResponse) probe.receiveMessage();
+        assertEquals(0, ((List<Command>)beforeCommit.state()).size());
         follower.tell(new RaftMessage.AppendEntries(1, probeRef, 0, 1, new ArrayList<>(), 0));
         probe.receiveMessage();
-        follower.tell(new RaftMessage.TestMessage.GetStateMachineCommands(probeRef));
-        RaftMessage.TestMessage.GetStateMachineCommandsResponse afterCommit =  (RaftMessage.TestMessage.GetStateMachineCommandsResponse) probe.receiveMessage();
-        assertEquals(1, ((List<Command>)afterCommit.commands()).size());
-        assertEquals(entry.command(), ((List<Command>)afterCommit.commands()).get(0));
+        follower.tell(new RaftMessage.TestMessage.GetStateMachineState(probeRef));
+        RaftMessage.TestMessage.GetStateMachineStateResponse afterCommit =  (RaftMessage.TestMessage.GetStateMachineStateResponse) probe.receiveMessage();
+        assertEquals(1, ((List<Command>)afterCommit.state()).size());
+        assertEquals(entry.command(), ((List<Command>)afterCommit.state()).get(0));
     }
 
     @Test
@@ -534,19 +534,19 @@ public class FollowerTests {
 
         follower.tell(new RaftMessage.AppendEntries(1,probeRef, -1, -1, entries, 1));
         probe.receiveMessage();
-        follower.tell(new RaftMessage.TestMessage.GetStateMachineCommands(probeRef));
-        RaftMessage.TestMessage.GetStateMachineCommandsResponse beforeFail =  (RaftMessage.TestMessage.GetStateMachineCommandsResponse) probe.receiveMessage();
-        assertEquals(2, ((List<Command>)beforeFail.commands()).size());
+        follower.tell(new RaftMessage.TestMessage.GetStateMachineState(probeRef));
+        RaftMessage.TestMessage.GetStateMachineStateResponse beforeFail =  (RaftMessage.TestMessage.GetStateMachineStateResponse) probe.receiveMessage();
+        assertEquals(2, ((List<Command>)beforeFail.state()).size());
 
         follower.tell(new RaftMessage.Failure());
-        follower.tell(new RaftMessage.TestMessage.GetStateMachineCommands(probeRef));
-        RaftMessage.TestMessage.GetStateMachineCommandsResponse afterFail =  (RaftMessage.TestMessage.GetStateMachineCommandsResponse) probe.receiveMessage();
-        assertEquals(0, ((List<Command>)afterFail.commands()).size());
+        follower.tell(new RaftMessage.TestMessage.GetStateMachineState(probeRef));
+        RaftMessage.TestMessage.GetStateMachineStateResponse afterFail =  (RaftMessage.TestMessage.GetStateMachineStateResponse) probe.receiveMessage();
+        assertEquals(0, ((List<Command>)afterFail.state()).size());
 
         follower.tell(new RaftMessage.AppendEntries(1, probeRef, 0, 1, new ArrayList<>(), 1));
         probe.receiveMessage();
-        follower.tell(new RaftMessage.TestMessage.GetStateMachineCommands(probeRef));
-        RaftMessage.TestMessage.GetStateMachineCommandsResponse afterCommit =  (RaftMessage.TestMessage.GetStateMachineCommandsResponse) probe.receiveMessage();
-        assertEquals(2, ((List<Command>)afterCommit.commands()).size());
+        follower.tell(new RaftMessage.TestMessage.GetStateMachineState(probeRef));
+        RaftMessage.TestMessage.GetStateMachineStateResponse afterCommit =  (RaftMessage.TestMessage.GetStateMachineStateResponse) probe.receiveMessage();
+        assertEquals(2, ((List<Command>)afterCommit.state()).size());
     }
 }

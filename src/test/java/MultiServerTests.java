@@ -94,7 +94,7 @@ public class MultiServerTests {
 
     private static void assertCorrectOrderOfServerStateMachineCommands(List<RaftMessage> responses) {
         for (RaftMessage r : responses){
-            List<Command> serverState = (List<Command>)((RaftMessage.TestMessage.GetStateMachineCommandsResponse) r).commands();
+            List<Command> serverState = (List<Command>)((RaftMessage.TestMessage.GetStateMachineStateResponse) r).state();
             for (int i = 0; i < serverState.size(); i++){
                 assertEquals(i, serverState.get(i).getCommandID());
             }
@@ -103,7 +103,7 @@ public class MultiServerTests {
 
     private static void sendGetStateMachineMessages(List<ActorRef<RaftMessage>> groupRefs, TestProbe<RaftMessage> probe2) {
         for (ActorRef<RaftMessage> server : groupRefs){
-            server.tell(new RaftMessage.TestMessage.GetStateMachineCommands(probe2.ref()));
+            server.tell(new RaftMessage.TestMessage.GetStateMachineState(probe2.ref()));
         }
     }
 

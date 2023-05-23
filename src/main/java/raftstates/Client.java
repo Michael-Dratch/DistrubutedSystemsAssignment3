@@ -78,7 +78,7 @@ public class Client extends AbstractBehavior<ClientMessage> {
                 this.concurrentFails = msg.concurrentFails();
                 start();
                 break;
-            case ClientMessage.ClientResponse msg:
+            case ClientMessage.ClientUpdateResponse msg:
                 handleClientResponse(msg);
                 startTimer();
                 break;
@@ -126,7 +126,7 @@ public class Client extends AbstractBehavior<ClientMessage> {
         this.requestsSinceFail = 0;
     }
 
-    private void handleClientResponse(ClientMessage.ClientResponse response){
+    private void handleClientResponse(ClientMessage.ClientUpdateResponse response){
         if (response.success()){
             getContext().getLog().info("CLIENT RECEIVED RESPONSE SUCCESS for " + response.commandID());
             if (response.commandID() < this.nextRequest) return;
@@ -159,8 +159,8 @@ public class Client extends AbstractBehavior<ClientMessage> {
         this.timer.startSingleTimer(TIMER_KEY, new ClientMessage.TimeOut(), Duration.ofSeconds(1));
     }
 
-    private RaftMessage.ClientRequest getRequestMessage(int commandId, String command){
-        return new RaftMessage.ClientRequest(getContext().getSelf(),
+    private RaftMessage.ClientUpdateRequest getRequestMessage(int commandId, String command){
+        return new RaftMessage.ClientUpdateRequest(getContext().getSelf(),
                 new StringCommand(refResolver.toSerializationFormat(getContext().getSelf()),
                             commandId,
                             command));
