@@ -3,7 +3,7 @@ package statemachine;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CommandList implements StateMachine {
+public class CommandList implements StateMachine<List<Command>> {
 
     public CommandList(){
         this.commands = new ArrayList<>();
@@ -22,12 +22,12 @@ public class CommandList implements StateMachine {
     }
 
     @Override
-    public List<Command> getCommands(){
+    public List<Command> getState(){
         return this.commands;
     }
 
     @Override
-    public void clearAll(){
+    public void resetState(){
         this.commands.clear();
     }
 }

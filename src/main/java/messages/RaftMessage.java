@@ -55,7 +55,7 @@ public interface RaftMessage {
         public record GetCommitIndex(ActorRef<RaftMessage> sender) implements TestMessage {}
         public record GetCommitIndexResponse(int commitIndex) implements TestMessage {}
         public record GetStateMachineCommands(ActorRef<RaftMessage> sender) implements TestMessage {}
-        public record GetStateMachineCommandsResponse(List<Command> commands) implements TestMessage {}
+        public record GetStateMachineCommandsResponse(Object commands) implements TestMessage {}
 
         public record SaveEntries(List<Entry> entries) implements TestMessage {}
         public record testFail() implements TestMessage {}

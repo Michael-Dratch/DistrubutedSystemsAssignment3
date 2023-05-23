@@ -10,6 +10,7 @@ import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.javadsl.TimerScheduler;
 import datapersistence.ServerDataManager;
 import messages.RaftMessage;
+import statemachine.Command;
 import statemachine.StateMachine;
 
 import java.util.ArrayList;
@@ -158,7 +159,7 @@ public class Candidate extends RaftServer {
                 msg.sender().tell(new RaftMessage.TestMessage.GetBehaviorResponse("CANDIDATE"));
                 break;
             case RaftMessage.TestMessage.GetStateMachineCommands msg:
-                msg.sender().tell(new RaftMessage.TestMessage.GetStateMachineCommandsResponse(this.stateMachine.getCommands()));
+                msg.sender().tell(new RaftMessage.TestMessage.GetStateMachineCommandsResponse((this.stateMachine.getState())));
                 break;
             default:
                 break;

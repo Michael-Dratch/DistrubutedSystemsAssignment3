@@ -94,7 +94,7 @@ public class MultiServerTests {
 
     private static void assertCorrectOrderOfServerStateMachineCommands(List<RaftMessage> responses) {
         for (RaftMessage r : responses){
-            List<Command> serverState = ((RaftMessage.TestMessage.GetStateMachineCommandsResponse) r).commands();
+            List<Command> serverState = (List<Command>)((RaftMessage.TestMessage.GetStateMachineCommandsResponse) r).commands();
             for (int i = 0; i < serverState.size(); i++){
                 assertEquals(i, serverState.get(i).getCommandID());
             }
@@ -125,7 +125,7 @@ public class MultiServerTests {
 
     @After
     public void tearDown(){
-      //clearDataDirectory();
+      clearDataDirectory();
     }
 
     @Test

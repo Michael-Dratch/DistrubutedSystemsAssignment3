@@ -219,7 +219,7 @@ public class Follower extends RaftServer {
                 msg.sender().tell(new RaftMessage.TestMessage.GetBehaviorResponse("FOLLOWER"));
                 break;
             case RaftMessage.TestMessage.GetStateMachineCommands msg:
-                msg.sender().tell(new RaftMessage.TestMessage.GetStateMachineCommandsResponse(this.stateMachine.getCommands()));
+                msg.sender().tell(new RaftMessage.TestMessage.GetStateMachineCommandsResponse(this.stateMachine.getState()));
                 break;
             case RaftMessage.TestMessage.GetState msg:
                 msg.sender().tell(new RaftMessage.TestMessage.GetStateResponse(this.currentTerm, this.votedFor, this.log, this.commitIndex, this.lastApplied));

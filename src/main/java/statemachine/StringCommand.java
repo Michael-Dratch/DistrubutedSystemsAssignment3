@@ -2,30 +2,12 @@ package statemachine;
 
 import java.io.Serializable;
 
-public class StringCommand implements Command, Serializable {
-    private String clientRef;
-    private int commandID;
+public class StringCommand extends Command implements Serializable {
     private String value;
 
     public StringCommand(String serializableClientRef, int commandID, String value){
-        this.clientRef = serializableClientRef;
-        this.commandID = commandID;
+        super(serializableClientRef, commandID);
         this.value = value;
-    }
-
-    @Override
-    public boolean equals(Command other){
-        return this.clientRef == other.getClientRef() && this.commandID == other.getCommandID();
-    }
-
-    @Override
-    public String getClientRef() {
-        return this.clientRef;
-    }
-
-    @Override
-    public int getCommandID() {
-        return this.commandID;
     }
 
     public String getValue() {

@@ -144,7 +144,7 @@ abstract class RaftServer extends AbstractBehavior<RaftMessage> {
     }
 
     protected void resetTransientState(){
-        this.stateMachine.clearAll();
+        this.stateMachine.resetState();
         this.commitIndex = -1;
         this.lastApplied = -1;
     }
