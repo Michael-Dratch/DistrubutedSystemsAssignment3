@@ -3,7 +3,7 @@ package statemachine;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CommandList implements StateMachine<List<Command>> {
+public class CommandList implements StateMachine<List<Command>, Command> {
 
     public CommandList(){
         this.commands = new ArrayList<>();

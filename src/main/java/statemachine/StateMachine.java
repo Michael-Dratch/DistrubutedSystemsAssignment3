@@ -2,10 +2,10 @@ package statemachine;
 
 import java.util.List;
 
-public interface StateMachine<stateType> {
+public interface StateMachine<stateType, commandType> {
 
-    public void apply(Command command);
-    public void applyAll(List<Command> commands);
+    public void apply(commandType command);
+    public void applyAll(List<commandType> commands);
 
     public stateType getState();
 
