@@ -6,6 +6,7 @@ import akka.actor.typed.Behavior;
 import akka.actor.typed.SupervisorStrategy;
 import akka.actor.typed.javadsl.*;
 import messages.ClientMessage;
+import messages.OrchMessage;
 import messages.RaftMessage;
 import statemachine.StringCommand;
 
@@ -55,7 +56,7 @@ public class Client extends AbstractBehavior<ClientMessage> {
 
     private int nextRequest;
 
-    private ActorRef<ClientMessage> alertWhenFinished;
+    private ActorRef<OrchMessage> alertWhenFinished;
 
     private boolean failMode;
     private int requestsSinceFail;
@@ -133,7 +134,7 @@ public class Client extends AbstractBehavior<ClientMessage> {
             if (noMoreRequestsLeft()) {
                 getContext().getLog().info("CLIENT RECEIVED RESPONSE FOR ALL REQUESTS - FINISHED");
                 this.timer.cancel(this.TIMER_KEY);
-                if (this.alertWhenFinished != null) this.alertWhenFinished.tell(new ClientMessage.Finished());
+                if (this.alertWhenFinished != null) this.alertWhenFinished.tell(new OrchMessage.ClientTerminated());
             }
             else {
                 getContext().getLog().info("CLIENT SENDING REQUEST " + this.nextRequest);

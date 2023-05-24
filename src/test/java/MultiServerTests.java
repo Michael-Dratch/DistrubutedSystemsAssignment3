@@ -3,6 +3,7 @@ import akka.actor.testkit.typed.javadsl.TestProbe;
 import akka.actor.typed.ActorRef;
 import datapersistence.ServerFileWriter;
 import messages.ClientMessage;
+import messages.OrchMessage;
 import messages.RaftMessage;
 import org.junit.*;
 import raftstates.Client;
@@ -123,15 +124,16 @@ public class MultiServerTests {
 
     @Test
     public void oneClientNoFailures4ServersSuccessfullyCommitsAllEntries() {
+        TestProbe<OrchMessage> orch = testKit.createTestProbe();
         List<String> commands = getCommandList(20);
         List<ActorRef<RaftMessage>> groupRefs = createServerGroup(4);
         sendGroupRefsToServers(groupRefs);
         startServerGroup(groupRefs);
 
         ActorRef<ClientMessage> client = testKit.spawn(Client.create(groupRefs,commands));
-        client.tell(new ClientMessage.AlertWhenFinished(probe.ref()));
+        client.tell(new ClientMessage.AlertWhenFinished(orch.ref()));
         client.tell(new ClientMessage.Start());
-        probe.expectMessage(new ClientMessage.Finished());
+        orch.expectMessage(new OrchMessage.ClientTerminated());
 
         TestProbe<RaftMessage> probe2 = testKit.createTestProbe();
         sendGetStateMachineMessages(groupRefs, probe2);
@@ -142,20 +144,23 @@ public class MultiServerTests {
 
     @Test
     public void oneClientRandomFailures4ServersSuccessfullyCommitsAllEntries(){
+        TestProbe<OrchMessage> orch = testKit.createTestProbe();
+
         List<String> commands = getCommandList(20);
         List<ActorRef<RaftMessage>> groupRefs = createServerGroup(4);
         sendGroupRefsToServers(groupRefs);
         startServerGroup(groupRefs);
 
         ActorRef<ClientMessage> client = testKit.spawn(Client.create(groupRefs,commands));
-        client.tell(new ClientMessage.AlertWhenFinished(probe.ref()));
+        client.tell(new ClientMessage.AlertWhenFinished(orch.ref()));
         client.tell(new ClientMessage.StartFailMode(4, 1));
-        probe.expectMessage(Duration.ofSeconds(10), new ClientMessage.Finished());
-
+        orch.expectMessage(new OrchMessage.ClientTerminated());
     }
 
     @Test
     public void TwoClientNoFailures4ServersSuccessfullyCommitsAllEntries() {
+        TestProbe<OrchMessage> orch = testKit.createTestProbe();
+
         List<String> commands1 = getCommandList(10);
         List<String> commands2 = getCommandList(10);
         List<ActorRef<RaftMessage>> groupRefs = createServerGroup(4);
@@ -164,16 +169,18 @@ public class MultiServerTests {
 
         ActorRef<ClientMessage> client1 = testKit.spawn(Client.create(groupRefs, commands1));
         ActorRef<ClientMessage> client2 = testKit.spawn(Client.create(groupRefs, commands2));
-        client1.tell(new ClientMessage.AlertWhenFinished(probe.ref()));
-        client2.tell(new ClientMessage.AlertWhenFinished(probe.ref()));
+        client1.tell(new ClientMessage.AlertWhenFinished(orch.ref()));
+        client2.tell(new ClientMessage.AlertWhenFinished(orch.ref()));
         client1.tell(new ClientMessage.Start());
         client2.tell(new ClientMessage.Start());
-        probe.expectMessage(Duration.ofSeconds(5), new ClientMessage.Finished());
-        probe.expectMessage(Duration.ofSeconds(5), new ClientMessage.Finished());
+        orch.expectMessage(Duration.ofSeconds(5), new OrchMessage.ClientTerminated());
+        orch.expectMessage(Duration.ofSeconds(5), new OrchMessage.ClientTerminated());
     }
 
     @Test
     public void TwoClientWithFailures5ServersSuccessfullyCommitsAllEntries() {
+        TestProbe<OrchMessage> orch = testKit.createTestProbe();
+
         List<String> commands1 = getCommandList(10);
         List<String> commands2 = getCommandList(10);
         List<ActorRef<RaftMessage>> groupRefs = createServerGroup(4);
@@ -182,25 +189,27 @@ public class MultiServerTests {
 
         ActorRef<ClientMessage> client1 = testKit.spawn(Client.create(groupRefs, commands1));
         ActorRef<ClientMessage> client2 = testKit.spawn(Client.create(groupRefs, commands2));
-        client1.tell(new ClientMessage.AlertWhenFinished(probe.ref()));
-        client2.tell(new ClientMessage.AlertWhenFinished(probe.ref()));
+        client1.tell(new ClientMessage.AlertWhenFinished(orch.ref()));
+        client2.tell(new ClientMessage.AlertWhenFinished(orch.ref()));
         client1.tell(new ClientMessage.StartFailMode(4,1));
         client2.tell(new ClientMessage.Start());
-        probe.expectMessage(Duration.ofSeconds(5), new ClientMessage.Finished());
-        probe.expectMessage(Duration.ofSeconds(5), new ClientMessage.Finished());
+        orch.expectMessage(Duration.ofSeconds(5), new OrchMessage.ClientTerminated());
+        orch.expectMessage(Duration.ofSeconds(5), new OrchMessage.ClientTerminated());
     }
 
     @Test
     public void oneClientRandomFailures2ServersAtATime5ServersTotalSuccessfullyCommitsAllEntries(){
+        TestProbe<OrchMessage> orch = testKit.createTestProbe();
+
         List<String> commands = getCommandList(15);
         List<ActorRef<RaftMessage>> groupRefs = createServerGroup(4);
         sendGroupRefsToServers(groupRefs);
         startServerGroup(groupRefs);
 
         ActorRef<ClientMessage> client = testKit.spawn(Client.create(groupRefs,commands));
-        client.tell(new ClientMessage.AlertWhenFinished(probe.ref()));
+        client.tell(new ClientMessage.AlertWhenFinished(orch.ref()));
         client.tell(new ClientMessage.StartFailMode(5, 2));
-        probe.expectMessage(Duration.ofSeconds(10), new ClientMessage.Finished());
+        orch.expectMessage(Duration.ofSeconds(10), new OrchMessage.ClientTerminated());
 
     }
 }

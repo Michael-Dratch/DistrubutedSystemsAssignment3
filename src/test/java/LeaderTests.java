@@ -312,6 +312,4 @@ public class LeaderTests {
         leader.tell(new RaftMessage.TestMessage.GetBehavior(probeRef));
         probe.expectMessage(new RaftMessage.TestMessage.GetBehaviorResponse("FOLLOWER"));
     }
-
-
 }
