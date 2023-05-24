@@ -94,7 +94,7 @@ public class Leader extends RaftServer {
                     handleClientUpdateRequest(msg);
                     break;
                 case RaftMessage.ClientUnstableReadRequest msg:
-                    handleClientReadRequest(msg);
+                    handleUnstableReadRequest(msg);
                     break;
                 case RaftMessage.ClientCommittedReadRequest msg:
                     handleClientReadRequest(msg);

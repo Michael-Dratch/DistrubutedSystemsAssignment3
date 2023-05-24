@@ -231,19 +231,6 @@ public class Follower extends RaftServer {
         else committedReadBuffer.add(msg);
     }
 
-    private void handleUnstableReadRequest(RaftMessage.ClientUnstableReadRequest msg){
-        if (isLogFullyCommitted()) sendCommittedState(msg);
-        else sendUncommittedState(msg);
-    }
-
-
-    private void sendUncommittedState(RaftMessage.ClientUnstableReadRequest msg) {
-        StateMachine uncommittedSM = this.stateMachine.forkStateMachine();
-        List<Entry> uncommittedEntries = this.log.subList(this.commitIndex + 1, this.log.size());
-        for (Entry e : uncommittedEntries) uncommittedSM.apply(e.command());
-        msg.clientRef().tell(new ClientMessage.ClientReadResponse<>(uncommittedSM.getState()));
-    }
-
     private void sendBufferedRequestsToSelf() {
         for (RaftMessage.ClientUpdateRequest request : updateRequestBuffer){
             getContext().getSelf().tell(request);

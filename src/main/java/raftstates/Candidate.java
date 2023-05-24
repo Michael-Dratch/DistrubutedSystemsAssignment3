@@ -146,17 +146,6 @@ public class Candidate extends RaftServer {
     private void handleClientRequest(RaftMessage.ClientCommittedReadRequest msg) {committedRequestBuffer.add(msg);}
 
 
-    private void handleUnstableReadRequest(RaftMessage.ClientUnstableReadRequest msg){
-        if (isLogFullyCommitted()) sendCommittedState(msg);
-        else sendUncommittedState(msg);
-    }
-
-    private void sendUncommittedState(RaftMessage.ClientUnstableReadRequest msg) {
-        StateMachine uncommittedSM = this.stateMachine.forkStateMachine();
-        List<Entry> uncommittedEntries = this.log.subList(this.commitIndex + 1, this.log.size());
-        for (Entry e : uncommittedEntries) uncommittedSM.apply(e.command());
-        msg.clientRef().tell(new ClientMessage.ClientReadResponse<>(uncommittedSM.getState()));
-    }
     private Behavior<RaftMessage> getLeaderBehavior() {
         return Leader.create(this.dataManager,
                 this.stateMachine,
@@ -182,6 +171,10 @@ public class Candidate extends RaftServer {
                 break;
             case RaftMessage.TestMessage.GetStateMachineState msg:
                 msg.sender().tell(new RaftMessage.TestMessage.GetStateMachineStateResponse((this.stateMachine.getState())));
+                break;
+            case RaftMessage.TestMessage.SaveEntries msg:
+                this.log.addAll(msg.entries());
+                this.dataManager.saveLog(this.log);
                 break;
             default:
                 break;
