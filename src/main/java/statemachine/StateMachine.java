@@ -10,4 +10,6 @@ public interface StateMachine<stateType, commandType> {
     public stateType getState();
 
     public void resetState();
+
+    public StateMachine<stateType, commandType> forkStateMachine();
 }

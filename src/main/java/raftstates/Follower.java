@@ -9,7 +9,9 @@ import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.javadsl.TimerScheduler;
 import datapersistence.ServerDataManager;
+import messages.ClientMessage;
 import messages.RaftMessage;
+import statemachine.Entry;
 import statemachine.StateMachine;
 
 import java.util.ArrayList;
@@ -224,7 +226,23 @@ public class Follower extends RaftServer {
     }
 
     private void handleUnstableReadRequest(RaftMessage.ClientUnstableReadRequest msg){
-        System.out.println("Got Unstable Read Request");
+        if (isLogFullyCommitted()) sendCommittedState(msg);
+        else sendUncommittedState(msg);
+    }
+
+    private boolean isLogFullyCommitted() {
+        return this.commitIndex >= this.log.size() - 1;
+    }
+
+    private void sendCommittedState(RaftMessage.ClientUnstableReadRequest msg) {
+        msg.clientRef().tell(new ClientMessage.ClientReadResponse<>(this.stateMachine.getState()));
+    }
+
+    private void sendUncommittedState(RaftMessage.ClientUnstableReadRequest msg) {
+        StateMachine uncommittedSM = this.stateMachine.forkStateMachine();
+        List<Entry> uncommittedEntries = this.log.subList(this.commitIndex + 1, this.log.size());
+        for (Entry e : uncommittedEntries) uncommittedSM.apply(e.command());
+        msg.clientRef().tell(new ClientMessage.ClientReadResponse<>(uncommittedSM.getState()));
     }
 
     private void sendBufferedRequestsToSelf() {

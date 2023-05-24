@@ -30,4 +30,11 @@ public class CommandList implements StateMachine<List<Command>, Command> {
     public void resetState(){
         this.commands.clear();
     }
+
+    @Override
+    public StateMachine<List<Command>, Command> forkStateMachine() {
+        CommandList copy = new CommandList();
+        copy.applyAll(this.commands);
+        return copy;
+    }
 }

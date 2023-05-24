@@ -48,6 +48,10 @@ public class SingleServerTests {
         directory.delete();
     }
 
+    private static CounterCommand createCommand() {
+        return new CounterCommand("", 1, 1);
+    }
+
     @BeforeClass
     public static void classSetUp(){
         testKit = ActorTestKit.create();
@@ -77,7 +81,7 @@ public class SingleServerTests {
         server = testKit.spawn(Follower.create(new ServerFileWriter(), new TicketCounter(5), new FailFlag()));
         TestProbe<RaftMessage> leader = testKit.createTestProbe();
         List<Entry> entries = new ArrayList<>();
-        entries.add(new Entry(1, new CounterCommand("", 1, 1)));
+        entries.add(new Entry(1, createCommand()));
         server.tell(new RaftMessage.AppendEntries(1, leader.ref(), -1, -1,  entries, 1));
         server.tell(new RaftMessage.TestMessage.GetStateMachineState(probeRef));
         probe.expectMessage(new RaftMessage.TestMessage.GetStateMachineStateResponse<Integer>(4));
@@ -101,7 +105,7 @@ public class SingleServerTests {
         TestProbe<ClientMessage> client = testKit.createTestProbe();
         server = testKit.spawn(Follower.create(new ServerFileWriter(), new TicketCounter(0), new FailFlag()));
         server.tell(new RaftMessage.AppendEntries(0, probeRef, -1,-1, new ArrayList<>(), -1));
-        RaftMessage.ClientUpdateRequest request = new RaftMessage.ClientUpdateRequest(client.ref(), new CounterCommand("", 1, 1));
+        RaftMessage.ClientUpdateRequest request = new RaftMessage.ClientUpdateRequest(client.ref(), createCommand());
 
         server.tell(request);
         probe.receiveMessage();
@@ -110,9 +114,20 @@ public class SingleServerTests {
 
     @Test
     public void followerReceivesUnstableReadRespondsToClientWithState(){
-
+        TestProbe<ClientMessage> client = testKit.createTestProbe();
+        server = testKit.spawn(Follower.create(new ServerFileWriter(), new TicketCounter(0), new FailFlag()));
+        server.tell(new RaftMessage.ClientUnstableReadRequest(client.ref()));
+        client.expectMessage(new ClientMessage.ClientReadResponse<Integer>(0));
     }
 
     @Test
-    public void followerRespondsToUnstableReadWithUncommittedEntries(){}
+    public void followerRespondsToUnstableReadWithUncommittedEntries(){
+        TestProbe<ClientMessage> client = testKit.createTestProbe();
+        server = testKit.spawn(Follower.create(new ServerFileWriter(), new TicketCounter(0), new FailFlag()));
+        List<Entry> entries = new ArrayList<>();
+        entries.add(new Entry(1, createCommand()));
+        server.tell(new RaftMessage.AppendEntries(1, probeRef, -1,-1, entries, -1));
+        server.tell(new RaftMessage.ClientUnstableReadRequest(client.ref()));
+        client.expectMessage(new ClientMessage.ClientReadResponse<Integer>(-1));
+    }
 }

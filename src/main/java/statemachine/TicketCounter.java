@@ -15,13 +15,13 @@ public class TicketCounter implements StateMachine<Integer, CounterCommand> {
 
     @Override
     public void apply(CounterCommand command) {
-        this.count -= command.decrementCount;
+        this.count -= command.getValue();
     }
 
     @Override
     public void applyAll(List<CounterCommand> commands) {
         for (CounterCommand command: commands){
-            this.count -= command.decrementCount;
+            this.count -= command.getValue();
         }
     }
 
@@ -33,5 +33,10 @@ public class TicketCounter implements StateMachine<Integer, CounterCommand> {
     @Override
     public void resetState() {
         this.count = this.initialState;
+    }
+
+    @Override
+    public StateMachine<Integer, CounterCommand> forkStateMachine(){
+        return new TicketCounter(this.count);
     }
 }
