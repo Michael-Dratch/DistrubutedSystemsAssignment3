@@ -29,6 +29,8 @@ abstract class RaftServer extends AbstractBehavior<RaftMessage> {
     protected ServerDataManager dataManager;
     protected StateMachine stateMachine;
 
+    protected StateMachine tentativeStateMachine;
+
     protected FailFlag failFlag;
 
     protected List<ActorRef<RaftMessage>> groupRefs;
@@ -88,6 +90,7 @@ abstract class RaftServer extends AbstractBehavior<RaftMessage> {
 
         initializeDataManager(context, dataManager);
         initializeState(dataManager);
+        updateTentativeState();
     }
 
     protected void initializeDataManager(ActorContext<RaftMessage> context, ServerDataManager dataManager) {
@@ -188,11 +191,13 @@ abstract class RaftServer extends AbstractBehavior<RaftMessage> {
         else sendUncommittedState(msg);
     }
 
-
     protected void sendUncommittedState(RaftMessage.ClientUnstableReadRequest msg) {
+        msg.clientRef().tell(new ClientMessage.ClientReadResponse<>(this.tentativeStateMachine.getState()));
+    }
+    protected void updateTentativeState(){
         StateMachine tentativeState = this.stateMachine.forkStateMachine();
         List<Entry> uncommittedEntries = this.log.subList(this.commitIndex + 1, this.log.size());
         for (Entry e : uncommittedEntries) tentativeState.apply(e.command());
-        msg.clientRef().tell(new ClientMessage.ClientReadResponse<>(tentativeState.getState()));
+        this.tentativeStateMachine = tentativeState;
     }
 }

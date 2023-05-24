@@ -306,7 +306,7 @@ public class LeaderTests {
     public void leaderBecomesFollowerOnFailure(){
         List<TestProbe<RaftMessage>> probes = getProbeGroup(4);
         List<ActorRef<RaftMessage>> groupRefs = getProbeGroupRefs(probes);
-        leader = testKit.spawn(Leader.create(new ServerFileWriter(), new CommandList(), new Object(), new FailFlag(), 1, groupRefs, 1, 1));
+        leader = testKit.spawn(Leader.create(new ServerFileWriter(), new CommandList(), new Object(), new FailFlag(), 1, groupRefs, -1, -1));
         leader.tell(new RaftMessage.Failure());
         leader.tell(new RaftMessage.TestMessage.GetState(probeRef));
         leader.tell(new RaftMessage.TestMessage.GetBehavior(probeRef));

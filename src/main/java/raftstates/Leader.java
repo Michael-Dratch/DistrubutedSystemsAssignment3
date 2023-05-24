@@ -239,6 +239,7 @@ public class Leader extends RaftServer {
                 this.log = msg.entries();
                 this.dataManager.saveLog(this.log);
                 this.initializeNextIndex();
+                updateTentativeState();
                 break;
             case RaftMessage.TestMessage.GetStateMachineState msg:
                 msg.sender().tell(new RaftMessage.TestMessage.GetStateMachineStateResponse(this.stateMachine.getState()));

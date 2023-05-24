@@ -9,9 +9,7 @@ import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.javadsl.TimerScheduler;
 import datapersistence.ServerDataManager;
-import messages.ClientMessage;
 import messages.RaftMessage;
-import statemachine.Entry;
 import statemachine.StateMachine;
 
 import java.util.ArrayList;
@@ -124,9 +122,17 @@ public class Follower extends RaftServer {
     }
 
     private void processSuccessfulAppendEntries(RaftMessage.AppendEntries msg) {
+        addEntriesToLog(msg);
+        updateCommitIndex(msg);
+        this.dataManager.saveLog(this.log);
+        updateTentativeState();
+        checkIfNewLeader(msg);
+        this.currentLeader = msg.leaderRef();
+        this.votedFor = null;
+    }
 
+    private void addEntriesToLog(RaftMessage.AppendEntries msg) {
         int entryCount = msg.entries().size();
-
         for (int i = 0; i < entryCount; i++){
             if (entryIndexExceedsLogSize(msg, i)){
                 addRemainingEntriesToLog(msg, i);
@@ -138,16 +144,15 @@ public class Follower extends RaftServer {
                 break;
             }
         }
-        updateCommitIndex(msg);
-        this.dataManager.saveLog(this.log);
-        if (this.currentLeader == null){
-            forwardBufferedRequests(msg);
-        }
-        this.currentLeader = msg.leaderRef();
-        this.votedFor = null;
     }
 
-    private void forwardBufferedRequests(RaftMessage.AppendEntries msg) {
+    private void checkIfNewLeader(RaftMessage.AppendEntries msg) {
+        if (this.currentLeader == null){
+            forwardBufferedRequestsToLeader(msg);
+        }
+    }
+
+    private void forwardBufferedRequestsToLeader(RaftMessage.AppendEntries msg) {
         getContext().getLog().info("FORWARDING BUFFERED REQUESTS TO LEADER");
         for (RaftMessage.ClientUpdateRequest request : updateRequestBuffer){
             msg.leaderRef().tell(request);

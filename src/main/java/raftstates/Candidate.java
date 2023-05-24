@@ -28,7 +28,17 @@ public class Candidate extends RaftServer {
                                                int commitIndex,
                                                int lastApplied){
         return Behaviors.<RaftMessage>supervise(
-                Behaviors.setup(context -> Behaviors.withTimers(timers -> new Candidate(context, timers, dataManager, stateMachine, failFlag, timerKey, currentTerm, groupRefs, commitIndex, lastApplied)))
+                Behaviors.setup(context -> Behaviors.withTimers(timers -> new Candidate(
+                        context,
+                        timers,
+                        dataManager,
+                        stateMachine,
+                        failFlag,
+                        timerKey,
+                        currentTerm,
+                        groupRefs,
+                        commitIndex,
+                        lastApplied)))
         ).onFailure(SupervisorStrategy.restart());
     }
 
@@ -175,6 +185,7 @@ public class Candidate extends RaftServer {
             case RaftMessage.TestMessage.SaveEntries msg:
                 this.log.addAll(msg.entries());
                 this.dataManager.saveLog(this.log);
+                updateTentativeState();
                 break;
             default:
                 break;
