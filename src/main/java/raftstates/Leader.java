@@ -91,7 +91,13 @@ public class Leader extends RaftServer {
         if (!this.failFlag.failed) {
             switch (message) {
                 case RaftMessage.ClientUpdateRequest msg:
-                    handleClientRequest(msg);
+                    handleClientUpdateRequest(msg);
+                    break;
+                case RaftMessage.ClientUnstableReadRequest msg:
+                    handleClientReadRequest(msg);
+                    break;
+                case RaftMessage.ClientCommittedReadRequest msg:
+                    handleClientReadRequest(msg);
                     break;
                 case RaftMessage.AppendEntries msg:
                     if (msg.term() < this.currentTerm) sendAppendEntriesResponse(msg, false);
@@ -130,7 +136,7 @@ public class Leader extends RaftServer {
         }
     }
 
-    private void handleClientRequest(RaftMessage.ClientUpdateRequest msg) {
+    private void handleClientUpdateRequest(RaftMessage.ClientUpdateRequest msg) {
         getContext().getLog().info("LEADER Receiving client request leaderID: " + getContext().getSelf().path().uid());
         Entry entry = new Entry(this.currentTerm, msg.command());
         if (!isDuplicate(msg)) {
@@ -142,6 +148,13 @@ public class Leader extends RaftServer {
         }
     }
 
+    private void handleClientReadRequest(RaftMessage.ClientUnstableReadRequest msg){
+        msg.clientRef().tell(new ClientMessage.ClientReadResponse<>(this.stateMachine.getState()));
+    }
+
+    private void handleClientReadRequest(RaftMessage.ClientCommittedReadRequest msg){
+        msg.clientRef().tell(new ClientMessage.ClientReadResponse<>(this.stateMachine.getState()));
+    }
 
     private void sendAppendEntriesToFollower(ActorRef<RaftMessage> follower) {
         int nodeNextIndex = this.nextIndex.get(follower);

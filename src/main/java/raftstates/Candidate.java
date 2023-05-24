@@ -9,7 +9,9 @@ import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.javadsl.TimerScheduler;
 import datapersistence.ServerDataManager;
+import messages.ClientMessage;
 import messages.RaftMessage;
+import statemachine.Entry;
 import statemachine.StateMachine;
 
 import java.util.ArrayList;
@@ -43,6 +45,8 @@ public class Candidate extends RaftServer {
 
     private List<RaftMessage.ClientUpdateRequest> requestBuffer;
 
+    private List<RaftMessage.ClientCommittedReadRequest> committedRequestBuffer;
+
 
 
     protected Candidate(ActorContext<RaftMessage> context,
@@ -63,6 +67,7 @@ public class Candidate extends RaftServer {
         this.votesReceived = 0;
         this.votesRequired = getVotesRequired(groupRefs);
         this.requestBuffer = new ArrayList<>();
+        this.committedRequestBuffer = new ArrayList<>();
         startTimer();
     }
 
@@ -104,6 +109,12 @@ public class Candidate extends RaftServer {
                     getContext().getLog().info("RECEIVED CLIENT REQUEST");
                     handleClientRequest(msg);
                     break;
+                case RaftMessage.ClientCommittedReadRequest msg:
+                    handleClientRequest(msg);
+                    break;
+                case RaftMessage.ClientUnstableReadRequest msg:
+                    handleUnstableReadRequest(msg);
+                    break;
                 case RaftMessage.Failure msg:   // Used to simulate node failure
                     throw new RuntimeException("Test Failure");
                 case RaftMessage.ShutDown msg:
@@ -125,15 +136,27 @@ public class Candidate extends RaftServer {
     }
 
     private void sendBufferedRequests(ActorRef<RaftMessage> leader) {
-        for (RaftMessage.ClientUpdateRequest request : requestBuffer){
-            leader.tell(request);
-        }
+        for (RaftMessage.ClientUpdateRequest request : requestBuffer) leader.tell(request);
+        for (RaftMessage.ClientCommittedReadRequest request : committedRequestBuffer) leader.tell(request);
     }
 
     private void handleClientRequest(RaftMessage.ClientUpdateRequest msg) {
         requestBuffer.add(msg);
     }
+    private void handleClientRequest(RaftMessage.ClientCommittedReadRequest msg) {committedRequestBuffer.add(msg);}
 
+
+    private void handleUnstableReadRequest(RaftMessage.ClientUnstableReadRequest msg){
+        if (isLogFullyCommitted()) sendCommittedState(msg);
+        else sendUncommittedState(msg);
+    }
+
+    private void sendUncommittedState(RaftMessage.ClientUnstableReadRequest msg) {
+        StateMachine uncommittedSM = this.stateMachine.forkStateMachine();
+        List<Entry> uncommittedEntries = this.log.subList(this.commitIndex + 1, this.log.size());
+        for (Entry e : uncommittedEntries) uncommittedSM.apply(e.command());
+        msg.clientRef().tell(new ClientMessage.ClientReadResponse<>(uncommittedSM.getState()));
+    }
     private Behavior<RaftMessage> getLeaderBehavior() {
         return Leader.create(this.dataManager,
                 this.stateMachine,

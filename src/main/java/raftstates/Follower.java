@@ -40,6 +40,7 @@ public class Follower extends RaftServer {
     protected Follower(ActorContext<RaftMessage> context, TimerScheduler<RaftMessage> timers, ServerDataManager dataManager, StateMachine stateMachine, FailFlag failFlag){
         super(context, timers, dataManager, stateMachine, failFlag,  -1,-1);
         updateRequestBuffer = new ArrayList<>();
+        committedReadBuffer = new ArrayList<>();
         currentLeader = null;
     }
 
@@ -47,6 +48,7 @@ public class Follower extends RaftServer {
 
     private List<RaftMessage.ClientUpdateRequest> updateRequestBuffer;
     private List<RaftMessage.ClientCommittedReadRequest> committedReadBuffer;
+
 
 
     private Behavior<RaftMessage> dispatch(RaftMessage message){
@@ -150,7 +152,11 @@ public class Follower extends RaftServer {
         for (RaftMessage.ClientUpdateRequest request : updateRequestBuffer){
             msg.leaderRef().tell(request);
         }
+        for (RaftMessage.ClientCommittedReadRequest request : committedReadBuffer){
+            msg.leaderRef().tell(request);
+        }
         updateRequestBuffer.clear();
+        committedReadBuffer.clear();
     }
 
     private boolean entryIndexExceedsLogSize(RaftMessage.AppendEntries msg, int i) {
@@ -230,13 +236,6 @@ public class Follower extends RaftServer {
         else sendUncommittedState(msg);
     }
 
-    private boolean isLogFullyCommitted() {
-        return this.commitIndex >= this.log.size() - 1;
-    }
-
-    private void sendCommittedState(RaftMessage.ClientUnstableReadRequest msg) {
-        msg.clientRef().tell(new ClientMessage.ClientReadResponse<>(this.stateMachine.getState()));
-    }
 
     private void sendUncommittedState(RaftMessage.ClientUnstableReadRequest msg) {
         StateMachine uncommittedSM = this.stateMachine.forkStateMachine();
@@ -247,6 +246,9 @@ public class Follower extends RaftServer {
 
     private void sendBufferedRequestsToSelf() {
         for (RaftMessage.ClientUpdateRequest request : updateRequestBuffer){
+            getContext().getSelf().tell(request);
+        }
+        for (RaftMessage.ClientCommittedReadRequest request : committedReadBuffer){
             getContext().getSelf().tell(request);
         }
     }

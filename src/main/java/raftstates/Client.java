@@ -43,7 +43,6 @@ public class Client extends AbstractBehavior<ClientMessage> {
         this.randomGenerator = new Random();
         this.randomGenerator.setSeed(System.currentTimeMillis());
         this.refResolver = ActorRefResolver.get(context.getSystem());
-
     }
 
     private List<ActorRef<RaftMessage>> serverRefs;

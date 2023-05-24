@@ -23,14 +23,7 @@ public class MultiServerTests {
     static ActorTestKit testKit;
 
 
-    private List<ActorRef<RaftMessage>> getGroupRefs(int count){
-        List<ActorRef<RaftMessage>> groupRefs = new ArrayList<>();
-        for (int i = 0; i < count; i++){
-            TestProbe<RaftMessage> probe = testKit.createTestProbe();
-            groupRefs.add(probe.ref());
-        }
-        return groupRefs;
-    }
+
 
     private void clearDataDirectory(){
         File dataDir = new File("./data/");

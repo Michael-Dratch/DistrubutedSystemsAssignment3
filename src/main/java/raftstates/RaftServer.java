@@ -9,6 +9,7 @@ import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.TimerScheduler;
 import datapersistence.ServerDataManager;
+import messages.ClientMessage;
 import messages.RaftMessage;
 import statemachine.Entry;
 import statemachine.StateMachine;
@@ -172,5 +173,13 @@ abstract class RaftServer extends AbstractBehavior<RaftMessage> {
             }
         }
         return isDuplicate;
+    }
+
+    protected boolean isLogFullyCommitted() {
+        return this.commitIndex >= this.log.size() - 1;
+    }
+
+    protected void sendCommittedState(RaftMessage.ClientUnstableReadRequest msg) {
+        msg.clientRef().tell(new ClientMessage.ClientReadResponse<>(this.stateMachine.getState()));
     }
 }
