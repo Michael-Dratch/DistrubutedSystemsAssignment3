@@ -10,6 +10,7 @@ import statemachine.Command;
 import statemachine.CounterCommand;
 import statemachine.Entry;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -158,5 +159,47 @@ public class ClientTests {
         probe.expectMessage(requests.get(0));
         client.tell(new ClientMessage.ClientReadResponse<>(0));
         orchestrator.expectMessage(new OrchMessage.ClientTerminated());
+    }
+
+    @Test
+    public void clientTimesOutResendsRequestToADifferentServer(){
+        List<TestProbe<RaftMessage>> probeGroup = getProbeGroup(2);
+        List<ActorRef<RaftMessage>> serverRefs = getProbeGroupRefs(probeGroup);
+        List<RaftMessage> requests = new ArrayList<>();
+        requests.add(new RaftMessage.ClientUnstableReadRequest(null));
+        ActorRef<ClientMessage> client = testKit.spawn(TicketClient.create(serverRefs, serverRefs.get(0)));
+        client.tell(new ClientMessage.SetRequestQueue(requests));
+        client.tell(new ClientMessage.Start());
+        probeGroup.get(0).expectMessage(new RaftMessage.ClientUnstableReadRequest(null));
+        probeGroup.get(1).expectMessage(new RaftMessage.ClientUnstableReadRequest(null));
+    }
+
+    @Test
+    public void clientTimesOutResendsRequestToADifferentServerAndContinuesToResendOnTimeOuts(){
+        List<TestProbe<RaftMessage>> probeGroup = getProbeGroup(3);
+        List<ActorRef<RaftMessage>> serverRefs = getProbeGroupRefs(probeGroup);
+        List<RaftMessage> requests = new ArrayList<>();
+        requests.add(new RaftMessage.ClientUnstableReadRequest(null));
+        ActorRef<ClientMessage> client = testKit.spawn(TicketClient.create(serverRefs, serverRefs.get(0)));
+        client.tell(new ClientMessage.SetRequestQueue(requests));
+        client.tell(new ClientMessage.Start());
+        probeGroup.get(0).expectMessage(new RaftMessage.ClientUnstableReadRequest(null));
+        probeGroup.get(1).expectMessage(new RaftMessage.ClientUnstableReadRequest(null));
+        probeGroup.get(2).expectMessage(new RaftMessage.ClientUnstableReadRequest(null));
+        probeGroup.get(1).expectMessage(new RaftMessage.ClientUnstableReadRequest(null));
+    }
+
+    @Test
+    public void clientRequestTimesOutUsesNonPreferredServerThenGoesBackToPreferredAfterPreferredTimerGoesOff(){
+        List<TestProbe<RaftMessage>> probeGroup = getProbeGroup(3);
+        List<ActorRef<RaftMessage>> serverRefs = getProbeGroupRefs(probeGroup);
+        List<RaftMessage> requests = new ArrayList<>();
+        requests.add(new RaftMessage.ClientUnstableReadRequest(null));
+        ActorRef<ClientMessage> client = testKit.spawn(TicketClient.create(serverRefs, serverRefs.get(0)));
+        client.tell(new ClientMessage.SetRequestQueue(requests));
+        client.tell(new ClientMessage.Start());
+        probeGroup.get(0).expectMessage(new RaftMessage.ClientUnstableReadRequest(null));
+        probeGroup.get(1).expectMessage(new RaftMessage.ClientUnstableReadRequest(null));
+        probeGroup.get(0).expectMessage(new RaftMessage.ClientUnstableReadRequest(null));
     }
 }

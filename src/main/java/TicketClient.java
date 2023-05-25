@@ -7,6 +7,7 @@ import messages.ClientMessage;
 import messages.OrchMessage;
 import messages.RaftMessage;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -33,22 +34,32 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
         this.timer = timers;
         this.serverRefs = serverRefs;
         this.preferredServer = preferredServer;
+        this.isPreferredServerActive = true;
+        this.isRetryingPreferredServer = false;
+        this.nextServerIndex = 0;
         this.requestQueue = new ArrayList<>();
         this.nextRequest = 0;
-        this.failMode = false;
-        this.requestsSinceFail = 0;
-        this.concurrentFails = 0;
-        this.requestsPerFailure = 0;
         this.randomGenerator = new Random();
         this.randomGenerator.setSeed(System.currentTimeMillis());
         this.refResolver = ActorRefResolver.get(context.getSystem());
     }
 
+    private final int requestTimeOutDuration = 500;
+    private final int preferredRetryTimeOutDuration = 2000;
+
     private List<ActorRef<RaftMessage>> serverRefs;
 
     private ActorRef<RaftMessage> preferredServer;
 
-    private Object TIMER_KEY = new Object();
+    private int nextServerIndex;
+
+    private boolean isPreferredServerActive;
+
+    private boolean isRetryingPreferredServer;
+
+    private Object REQUEST_TIMER_KEY = new Object();
+
+    private Object PREFERRED_RETRY_TIMER_KEY = new Object();
 
     protected TimerScheduler<ClientMessage> timer;
 
@@ -57,12 +68,6 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
     private int nextRequest;
 
     private ActorRef<OrchMessage> alertWhenFinished;
-
-    private boolean failMode;
-    private int requestsSinceFail;
-    private int requestsPerFailure;
-
-    private int concurrentFails;
 
     private Random randomGenerator;
     private ActorRefResolver refResolver;
@@ -75,12 +80,6 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
             case ClientMessage.SetRequestQueue msg:
                 this.requestQueue.addAll(msg.requests());
                 break;
-            case ClientMessage.StartFailMode msg:
-                this.failMode = true;
-                this.requestsPerFailure = msg.requestsPerFailure();
-                this.concurrentFails = msg.concurrentFails();
-                start();
-                break;
             case ClientMessage.ClientReadResponse msg:
                 handleReadResponse(msg);
                 break;
@@ -92,8 +91,12 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
                 this.alertWhenFinished = msg.sender();
                 break;
             case ClientMessage.TimeOut msg:
-                //this.sendNextRequestToRandomServer();
-                //startTimer();
+                handleTimeOut();
+                break;
+            case ClientMessage.PreferredRetryTimout msg:
+                System.out.println("Preferred Server Retry TimeOUt");
+                isPreferredServerActive = true;
+                isRetryingPreferredServer = true;
                 break;
             case ClientMessage.ShutDown msg:
                 return Behaviors.stopped();
@@ -103,15 +106,9 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
         return this;
     }
 
-    private void handleUpdateResponse(ClientMessage.ClientUpdateResponse msg) {
-        if (msg.success()) {
-            this.nextRequest++;
-            sendNextRequestToPreferredServer();
-        }
-        else{
-            System.out.println("Update Failed");
-            shutdown();
-        }
+    private void start(){
+        sendNextRequest();
+        startRequestTimer();
     }
 
     private void handleReadResponse(ClientMessage.ClientReadResponse<Integer> msg) {
@@ -121,8 +118,41 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
         }
         else{
             this.nextRequest++;
-            sendNextRequestToPreferredServer();
+            sendNextRequest();
         }
+    }
+
+    private void sendNextRequest() {
+        if (allRequestsAlreadySent()) shutdown();
+        else if (this.isPreferredServerActive) this.preferredServer.tell(this.requestQueue.get(this.nextRequest));
+        else sendRequestToNonPreferredServer();
+    }
+
+    private boolean allRequestsAlreadySent() {
+        return this.nextRequest >= this.requestQueue.size();
+    }
+
+    private void handleUpdateResponse(ClientMessage.ClientUpdateResponse msg) {
+        if (msg.success()) {
+            this.nextRequest++;
+            sendNextRequest();
+        }
+        else shutdown();
+    }
+
+    private void handleTimeOut() {
+        System.out.println("Time OUt");
+        if (isPreferredServerUnresponsive()) {
+            isPreferredServerActive = false;
+            startPreferredServerRetryTimer();
+        } else this.nextServerIndex++;
+        sendNextRequest();
+        isRetryingPreferredServer = false;
+        startRequestTimer();
+    }
+
+    private boolean isPreferredServerUnresponsive() {
+        return isPreferredServerActive && !isRetryingPreferredServer;
     }
 
     private void shutdown() {
@@ -130,17 +160,19 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
         getContext().getSelf().tell(new ClientMessage.ShutDown(null));
     }
 
-    private void start(){
-        sendNextRequestToPreferredServer();
-//        startTimer();
+    private void sendRequestToNonPreferredServer() {
+        if (serverRefs.size() <= 1) return; // no other servers wait for other timer to run out and retry preferred server
+        if (nextServerIndex >= serverRefs.size()) nextServerIndex = 0;
+        if (serverRefs.get(nextServerIndex) == preferredServer) nextServerIndex++;
+        this.serverRefs.get(nextServerIndex).tell(this.requestQueue.get(this.nextRequest));
     }
 
-    private void sendNextRequestToPreferredServer() {
-        if (this.nextRequest >= this.requestQueue.size()) {
-            System.out.println("All Requests Sent");
-            shutdown();
-        }
-        else this.preferredServer.tell(this.requestQueue.get(this.nextRequest));
+    private void startRequestTimer() {
+        this.timer.startSingleTimer(REQUEST_TIMER_KEY, new ClientMessage.TimeOut(), Duration.ofMillis(requestTimeOutDuration));
+    }
+
+    private void startPreferredServerRetryTimer(){
+        this.timer.startSingleTimer(PREFERRED_RETRY_TIMER_KEY, new ClientMessage.PreferredRetryTimout(), Duration.ofMillis(preferredRetryTimeOutDuration));
     }
 
 }
