@@ -39,4 +39,9 @@ public class TicketCounter implements StateMachine<Integer, CounterCommand> {
     public StateMachine<Integer, CounterCommand> forkStateMachine(){
         return new TicketCounter(this.count);
     }
+    @Override
+    public boolean isStateValid(){
+        if (this.count >= 0) return true;
+        else return false;
+    }
 }

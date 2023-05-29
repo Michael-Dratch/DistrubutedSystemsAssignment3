@@ -71,11 +71,11 @@ public class Follower extends RaftServer {
                     sendBufferedRequestsToSelf();
                     return Candidate.create(this.dataManager, this.stateMachine, this.failFlag, this.TIMER_KEY, this.currentTerm, this.groupRefs, this.commitIndex, this.lastApplied);
                 case RaftMessage.ClientUpdateRequest msg:
-                    getContext().getLog().info("RECEIVED CLIENT REQUEST");
+                    getContext().getLog().info("RECEIVED CLIENT UPDATE REQUEST");
                     handleClientUpdateRequest(msg);
                     break;
                 case RaftMessage.ClientCommittedReadRequest msg:
-                    getContext().getLog().info("RECEIVED CLIENT Stable Read REQUEST");
+                    getContext().getLog().info("RECEIVED CLIENT STABLE READ REQUEST");
                     handleClientCommittedReadRequest(msg);
                     break;
                 case RaftMessage.ClientUnstableReadRequest msg:
@@ -153,7 +153,6 @@ public class Follower extends RaftServer {
     }
 
     private void forwardBufferedRequestsToLeader(RaftMessage.AppendEntries msg) {
-        getContext().getLog().info("FORWARDING BUFFERED REQUESTS TO LEADER");
         for (RaftMessage.ClientUpdateRequest request : updateRequestBuffer){
             msg.leaderRef().tell(request);
         }
@@ -222,7 +221,6 @@ public class Follower extends RaftServer {
 
     private void handleClientUpdateRequest(RaftMessage.ClientUpdateRequest msg) {
         if (currentLeader != null) {
-            getContext().getLog().info("FORWARDING REQUEST TO LEADER");
             this.currentLeader.tell(msg);
         }
         else updateRequestBuffer.add(msg);
@@ -230,7 +228,6 @@ public class Follower extends RaftServer {
 
     private void handleClientCommittedReadRequest(RaftMessage.ClientCommittedReadRequest msg) {
         if (currentLeader != null) {
-            getContext().getLog().info("FORWARDING READ REQUEST TO LEADER");
             this.currentLeader.tell(msg);
         }
         else committedReadBuffer.add(msg);

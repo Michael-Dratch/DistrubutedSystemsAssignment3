@@ -97,7 +97,7 @@ public class Leader extends RaftServer {
                     handleUnstableReadRequest(msg);
                     break;
                 case RaftMessage.ClientCommittedReadRequest msg:
-                    handleClientReadRequest(msg);
+                    handleClientCommittedReadRequest(msg);
                     break;
                 case RaftMessage.AppendEntries msg:
                     if (msg.term() < this.currentTerm) sendAppendEntriesResponse(msg, false);
@@ -137,7 +137,11 @@ public class Leader extends RaftServer {
     }
 
     private void handleClientUpdateRequest(RaftMessage.ClientUpdateRequest msg) {
-        getContext().getLog().info("LEADER Receiving client request leaderID: " + getContext().getSelf().path().uid());
+        if (updateRequestIsValid(msg))processValidUpdateRequest(msg);
+        else msg.clientRef().tell(new ClientMessage.ClientUpdateResponse(false, msg.command().getCommandID()));
+    }
+
+    private void processValidUpdateRequest(RaftMessage.ClientUpdateRequest msg) {
         Entry entry = new Entry(this.currentTerm, msg.command());
         if (!isDuplicate(msg)) {
             this.log.add(entry);
@@ -148,12 +152,18 @@ public class Leader extends RaftServer {
         }
     }
 
-    private void handleClientReadRequest(RaftMessage.ClientUnstableReadRequest msg){
-        msg.clientRef().tell(new ClientMessage.ClientReadResponse<>(this.stateMachine.getState()));
+    private boolean updateRequestIsValid(RaftMessage.ClientUpdateRequest msg) {
+        StateMachine tempSM = this.stateMachine.forkStateMachine();
+        tempSM.apply(msg.command());
+        return tempSM.isStateValid();
     }
 
-    private void handleClientReadRequest(RaftMessage.ClientCommittedReadRequest msg){
-        msg.clientRef().tell(new ClientMessage.ClientReadResponse<>(this.stateMachine.getState()));
+    private void handleClientUnstableReadRequest(RaftMessage.ClientUnstableReadRequest msg){
+        msg.clientRef().tell(new ClientMessage.ClientUnstableReadResponse<>(this.stateMachine.getState()));
+    }
+
+    private void handleClientCommittedReadRequest(RaftMessage.ClientCommittedReadRequest msg){
+        msg.clientRef().tell(new ClientMessage.ClientCommittedReadResponse<>(this.stateMachine.getState()));
     }
 
     private void sendAppendEntriesToFollower(ActorRef<RaftMessage> follower) {
@@ -190,7 +200,6 @@ public class Leader extends RaftServer {
 
     private void updateCommitIndex(int entryIndex) {
         if (entryIndex <= this.commitIndex) return;
-        getContext().getLog().info("ENTRY " + entryIndex + " COMMITTED");
         this.commitIndex = entryIndex;
         int prevCommit = this.lastApplied;
         this.applyCommittedEntriesToStateMachine();

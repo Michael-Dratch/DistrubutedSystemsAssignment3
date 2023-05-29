@@ -80,12 +80,14 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
             case ClientMessage.SetRequestQueue msg:
                 this.requestQueue.addAll(msg.requests());
                 break;
-            case ClientMessage.ClientReadResponse msg:
+            case ClientMessage.ClientCommittedReadResponse msg:
+                handleReadResponse(msg);
+                break;
+            case ClientMessage.ClientUnstableReadResponse msg:
                 handleReadResponse(msg);
                 break;
             case ClientMessage.ClientUpdateResponse msg:
                 handleUpdateResponse(msg);
-                //startTimer();
                 break;
             case ClientMessage.AlertWhenFinished msg:
                 this.alertWhenFinished = msg.sender();
@@ -94,7 +96,6 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
                 handleTimeOut();
                 break;
             case ClientMessage.PreferredRetryTimout msg:
-                System.out.println("Preferred Server Retry TimeOUt");
                 isPreferredServerActive = true;
                 isRetryingPreferredServer = true;
                 break;
@@ -111,12 +112,25 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
         startRequestTimer();
     }
 
-    private void handleReadResponse(ClientMessage.ClientReadResponse<Integer> msg) {
+    private void handleReadResponse(ClientMessage.ClientUnstableReadResponse<Integer> msg) {
         if (msg.state() <= 0) {
-            System.out.println("No Tickets Left Client Terminating");
+            getContext().getLog().info("CLIENT RECEIVED RESPONSE. NO TICKETS LEFT. TERMINATING");
             shutdown();
         }
         else{
+            getContext().getLog().info("CLIENT RECEIVED UNSTABLE READ RESPONSE. TICKETS: " + msg.state());
+            this.nextRequest++;
+            sendNextRequest();
+        }
+    }
+
+    private void handleReadResponse(ClientMessage.ClientCommittedReadResponse<Integer> msg) {
+        if (msg.state() <= 0) {
+            getContext().getLog().info("CLIENT RECEIVED RESPONSE. NO TICKETS LEFT. TERMINATING");
+            shutdown();
+        }
+        else{
+            getContext().getLog().info("CLIENT RECEIVED STABLE READ RESPONSE. TICKETS: " + msg.state());
             this.nextRequest++;
             sendNextRequest();
         }
@@ -124,8 +138,14 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
 
     private void sendNextRequest() {
         if (allRequestsAlreadySent()) shutdown();
-        else if (this.isPreferredServerActive) this.preferredServer.tell(this.requestQueue.get(this.nextRequest));
-        else sendRequestToNonPreferredServer();
+        else if (this.isPreferredServerActive) {
+            getContext().getLog().info("CLIENT: SENDING REQUEST " + this.requestQueue.get(this.nextRequest).toString());
+            this.preferredServer.tell(this.requestQueue.get(this.nextRequest));
+        }
+        else {
+            getContext().getLog().info("CLIENT: SENDING REQUEST " + this.requestQueue.get(this.nextRequest).toString());
+            sendRequestToNonPreferredServer();
+        }
     }
 
     private boolean allRequestsAlreadySent() {
@@ -137,11 +157,13 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
             this.nextRequest++;
             sendNextRequest();
         }
-        else shutdown();
+        else {
+            getContext().getLog().info("CLIENT RECEIVED UPDATE RESPONSE. FAILED. TERMINATING");
+            shutdown();
+        }
     }
 
     private void handleTimeOut() {
-        System.out.println("Time OUt");
         if (isPreferredServerUnresponsive()) {
             isPreferredServerActive = false;
             startPreferredServerRetryTimer();
@@ -156,7 +178,6 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
     }
 
     private void shutdown() {
-        this.alertWhenFinished.tell(new OrchMessage.ClientTerminated());
         getContext().getSelf().tell(new ClientMessage.ShutDown(null));
     }
 

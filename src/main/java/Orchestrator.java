@@ -1,4 +1,5 @@
 import akka.actor.typed.ActorRef;
+import akka.actor.typed.ActorRefResolver;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
@@ -8,10 +9,10 @@ import datapersistence.ServerFileWriter;
 import messages.ClientMessage;
 import messages.OrchMessage;
 import messages.RaftMessage;
-import raftstates.Client;
 import raftstates.FailFlag;
 import raftstates.Follower;
-import statemachine.CommandList;
+import statemachine.CounterCommand;
+import statemachine.TicketCounter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,12 +26,22 @@ public class Orchestrator extends AbstractBehavior<OrchMessage> {
         super(ctxt);
         clientsTerminated = 0;
         serversTerminated = 0;
+        refResolver = ActorRefResolver.get(getContext().getSystem());
     }
 
+    private final int numServers = 5;
+    private final int numClients = 5;
+
+    private final int numTicketRequestsPerClient = 25;
+
+    private final int initialCounterState = 20;
     private List<ActorRef<RaftMessage>> serverRefs;
     private List<ActorRef<ClientMessage>> clientRefs;
     int clientsTerminated;
     int serversTerminated;
+
+    ActorRefResolver refResolver;
+
 
     @Override
     public Receive<OrchMessage> createReceive() {
@@ -57,7 +68,6 @@ public class Orchestrator extends AbstractBehavior<OrchMessage> {
                 break;
             case OrchMessage.ShutDownComplete complete:
                 getContext().getLog().info("[Orchestrator] SHUTTING DOWN ");
-
                 return Behaviors.stopped();
             default:
                 break;
@@ -74,6 +84,7 @@ public class Orchestrator extends AbstractBehavior<OrchMessage> {
 
     private void handleClientTerminated() {
         this.clientsTerminated++;
+       if (clientsTerminated == this.clientRefs.size()) getContext().getLog().info("ALL CLIENTS TERMINATED");
         if (areAllHostsTerminated()){
             getContext().getSelf().tell(new OrchMessage.ShutDownComplete());
         }
@@ -86,52 +97,58 @@ public class Orchestrator extends AbstractBehavior<OrchMessage> {
 
     private void handleStart(OrchMessage.Start start) {
         getContext().getLog().info("[Orchestrator] spawning servers ");
-        this.serverRefs = createServers(start.serverCount());
+        this.serverRefs = createServers(numServers);
         getContext().getLog().info("[Orchestrator] spawning clients ");
         sendGroupRefsToServers(this.serverRefs);
-        this.clientRefs = createClients(start.clientCount(), this.serverRefs, start.numClientRequests());
+        this.clientRefs = createClients(numClients, this.serverRefs);
+        sendRequestQueueToClients(this.clientRefs);
+        notifyAllClients(new ClientMessage.AlertWhenFinished(getContext().getSelf()));
         getContext().getLog().info("[Orchestrator] starting servers");
         notifyAllServers(new RaftMessage.Start());
         getContext().getLog().info("[Orchestrator] starting clients");
-        if (start.concurrentFailures() < 1) notifyAllClients(new ClientMessage.Start());
-        else startClientsWithFailMessages(start);
+        notifyAllClients(new ClientMessage.Start());
     }
 
-    private void startClientsWithFailMessages(OrchMessage.Start start) {
-        this.clientRefs.get(0).tell(new ClientMessage.StartFailMode(5, start.concurrentFailures()));
-        for (int i = 1; i < this.clientRefs.size(); i++){
-            this.clientRefs.get(i).tell(new ClientMessage.Start());
+    private void sendRequestQueueToClients(List<ActorRef<ClientMessage>> clientRefs) {
+        for (ActorRef<ClientMessage> client: clientRefs){
+            List<RaftMessage> requestQueue = getRequestList(client);
+            client.tell(new ClientMessage.SetRequestQueue(requestQueue));
         }
     }
+
 
     private ArrayList<ActorRef<RaftMessage>> createServers(int serverCount) {
         ArrayList<ActorRef<RaftMessage>> serverRefs = new ArrayList<>();
         for (int count = 0; count < serverCount; count++){
-            var serverRef = this.getContext().spawn(Follower.create(new ServerFileWriter(), new CommandList(), new FailFlag()), "SERVER_" + count);
+            var serverRef = this.getContext().spawn(Follower.create(new ServerFileWriter(),
+                                                                            new TicketCounter(initialCounterState),
+                                                                            new FailFlag()),
+                                                                            "SERVER_" + count);
             serverRefs.add(serverRef);
             this.getContext().watchWith(serverRef, new OrchMessage.ServerTerminated());
         }
         return serverRefs;
     }
 
-    private ArrayList<ActorRef<ClientMessage>> createClients(int clientCount, List<ActorRef<RaftMessage>> serverRefs, int numRequests) {
-        List<String> commands = getCommandList(numRequests);
-
+    private ArrayList<ActorRef<ClientMessage>> createClients(int clientCount, List<ActorRef<RaftMessage>> serverRefs) {
         ArrayList<ActorRef<ClientMessage>> clientRefs = new ArrayList<>();
         for (int count = 0; count < clientCount; count++){
-            var clientRef = this.getContext().spawn(Client.create(serverRefs, commands),  "CLIENT_" + count);
+            var clientRef = this.getContext().spawn(TicketClient.create(serverRefs,
+                                                                                serverRefs.get(count)),
+                                                                                "CLIENT_" + count);
             clientRefs.add(clientRef);
             this.getContext().watchWith(clientRef, new OrchMessage.ClientTerminated());
         }
         return clientRefs;
     }
 
-    private static List<String> getCommandList(int count) {
-        List<String> commands = new ArrayList<>();
-        for (int i = 0; i < count; i++){
-            commands.add("COMMAND_" + i );
+    private List<RaftMessage> getRequestList(ActorRef<ClientMessage> clientRef) {
+        List<RaftMessage> requests = new ArrayList<>();
+        for (int i = 0; i < this.numTicketRequestsPerClient; i++){
+            requests.add(new RaftMessage.ClientUnstableReadRequest(clientRef));
+            requests.add(new RaftMessage.ClientUpdateRequest(clientRef, new CounterCommand(refResolver.toSerializationFormat(clientRef), i, 1)));
         }
-        return commands;
+        return requests;
     }
 
     private void handleShutdown(){

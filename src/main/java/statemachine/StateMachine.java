@@ -12,4 +12,6 @@ public interface StateMachine<stateType, commandType> {
     public void resetState();
 
     public StateMachine<stateType, commandType> forkStateMachine();
+
+    public boolean isStateValid();
 }

@@ -15,7 +15,6 @@ import statemachine.Entry;
 import statemachine.StateMachine;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
@@ -183,7 +182,7 @@ abstract class RaftServer extends AbstractBehavior<RaftMessage> {
     }
 
     protected void sendCommittedState(RaftMessage.ClientUnstableReadRequest msg) {
-        msg.clientRef().tell(new ClientMessage.ClientReadResponse<>(this.stateMachine.getState()));
+        msg.clientRef().tell(new ClientMessage.ClientCommittedReadResponse<>(this.stateMachine.getState()));
     }
 
     protected void handleUnstableReadRequest(RaftMessage.ClientUnstableReadRequest msg){
@@ -192,7 +191,7 @@ abstract class RaftServer extends AbstractBehavior<RaftMessage> {
     }
 
     protected void sendUncommittedState(RaftMessage.ClientUnstableReadRequest msg) {
-        msg.clientRef().tell(new ClientMessage.ClientReadResponse<>(this.tentativeStateMachine.getState()));
+        msg.clientRef().tell(new ClientMessage.ClientUnstableReadResponse<>(this.tentativeStateMachine.getState()));
     }
     protected void updateTentativeState(){
         StateMachine tentativeState = this.stateMachine.forkStateMachine();

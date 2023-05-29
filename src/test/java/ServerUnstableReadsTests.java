@@ -139,11 +139,11 @@ public class ServerUnstableReadsTests {
     }
 
     @Test
-    public void followerReceivesUnstableReadRespondsToClientWithState(){
+    public void followerReceivesUnstableReadRespondsLogFullyCommittedSendsCommittedStateToClient(){
         TestProbe<ClientMessage> client = testKit.createTestProbe();
         server = testKit.spawn(Follower.create(new ServerFileWriter(), new TicketCounter(0), new FailFlag()));
         server.tell(new RaftMessage.ClientUnstableReadRequest(client.ref()));
-        client.expectMessage(new ClientMessage.ClientReadResponse<Integer>(0));
+        client.expectMessage(new ClientMessage.ClientCommittedReadResponse<Integer>(0));
     }
 
     @Test
@@ -154,7 +154,7 @@ public class ServerUnstableReadsTests {
         entries.add(new Entry(1, createCommand()));
         server.tell(new RaftMessage.AppendEntries(1, probeRef, -1,-1, entries, -1));
         server.tell(new RaftMessage.ClientUnstableReadRequest(client.ref()));
-        client.expectMessage(new ClientMessage.ClientReadResponse<Integer>(-1));
+        client.expectMessage(new ClientMessage.ClientUnstableReadResponse<Integer>(-1));
     }
 
     @Test
@@ -164,7 +164,7 @@ public class ServerUnstableReadsTests {
         List<Entry> entries = getEntries(3);
         server.tell(new RaftMessage.AppendEntries(1, probeRef, -1,-1, entries, 0));
         server.tell(new RaftMessage.ClientUnstableReadRequest(client.ref()));
-        client.expectMessage(new ClientMessage.ClientReadResponse<Integer>(7));
+        client.expectMessage(new ClientMessage.ClientUnstableReadResponse<Integer>(7));
     }
 
     @Test
@@ -185,7 +185,7 @@ public class ServerUnstableReadsTests {
         server = testKit.spawn(Candidate.create(new ServerFileWriter(), new TicketCounter(0), new FailFlag(), new Object(), 0, groupRefs, -1, -1));
         server.tell(new RaftMessage.RequestVoteResponse(0, true));
         server.tell(new RaftMessage.ClientCommittedReadRequest(client.ref()));
-        client.expectMessage(new ClientMessage.ClientReadResponse<>(0));
+        client.expectMessage(new ClientMessage.ClientCommittedReadResponse<>(0));
     }
 
     @Test
@@ -205,7 +205,7 @@ public class ServerUnstableReadsTests {
         List<ActorRef<RaftMessage>> groupRefs = getProbeGroupRefs(serverGroup);
         server = testKit.spawn(Candidate.create(new ServerFileWriter(), new TicketCounter(0), new FailFlag(), new Object(), 0, groupRefs, -1, -1));
         server.tell(new RaftMessage.ClientUnstableReadRequest(client.ref()));
-        client.expectMessage(new ClientMessage.ClientReadResponse<>(0));
+        client.expectMessage(new ClientMessage.ClientCommittedReadResponse<>(0));
     }
 
     @Test
@@ -217,7 +217,7 @@ public class ServerUnstableReadsTests {
         List<Entry> entries = getEntries(3);
         server.tell(new RaftMessage.TestMessage.SaveEntries(entries));
         server.tell(new RaftMessage.ClientUnstableReadRequest(client.ref()));
-        client.expectMessage(new ClientMessage.ClientReadResponse<>(-3));
+        client.expectMessage(new ClientMessage.ClientUnstableReadResponse<>(-3));
     }
 
     @Test
@@ -226,7 +226,7 @@ public class ServerUnstableReadsTests {
         server = testKit.spawn(Leader.create(new ServerFileWriter(), new TicketCounter(0),  new Object(), new FailFlag(), 0, new ArrayList<>(), -1, -1));
         server.tell(new RaftMessage.TestMessage.SaveEntries(getEntries(3)));
         server.tell(new RaftMessage.ClientCommittedReadRequest(client.ref()));
-        client.expectMessage(new ClientMessage.ClientReadResponse<>(0));
+        client.expectMessage(new ClientMessage.ClientCommittedReadResponse<>(0));
     }
 
     @Test
@@ -235,6 +235,25 @@ public class ServerUnstableReadsTests {
         server = testKit.spawn(Leader.create(new ServerFileWriter(), new TicketCounter(0),  new Object(), new FailFlag(), 0, new ArrayList<>(), -1, -1));
         server.tell(new RaftMessage.TestMessage.SaveEntries(getEntries(3)));
         server.tell(new RaftMessage.ClientUnstableReadRequest(client.ref()));
-        client.expectMessage(new ClientMessage.ClientReadResponse<>(-3));
+        client.expectMessage(new ClientMessage.ClientUnstableReadResponse<>(-3));
+    }
+
+    @Test
+    public void clientUpdateMakesLeaderTicketCounterGoBelowZeroClientReceivesAFailedUpdateResponse(){
+        TestProbe<ClientMessage> client = testKit.createTestProbe();
+        server = testKit.spawn(Leader.create(new ServerFileWriter(), new TicketCounter(0),  new Object(), new FailFlag(), 0, new ArrayList<>(), -1, -1));
+        server.tell(new RaftMessage.ClientUpdateRequest(client.ref(), new CounterCommand("", 1, 1)));
+        client.expectMessage(new ClientMessage.ClientUpdateResponse(false, 1));
+    }
+
+    @Test
+    public void clientUpdateIsValidReceivesUpdateSuccessfulResponse(){
+        TestProbe<ClientMessage> client = testKit.createTestProbe();
+        ArrayList<ActorRef<RaftMessage>> groupRefs = new ArrayList<>();
+        groupRefs.add(probeRef);
+        server = testKit.spawn(Leader.create(new ServerFileWriter(), new TicketCounter(1),  new Object(), new FailFlag(), 0, groupRefs, -1, -1));
+        server.tell(new RaftMessage.ClientUpdateRequest(client.ref(), new CounterCommand(refResolver.toSerializationFormat(client.ref()), 1, 1)));
+        server.tell(new RaftMessage.AppendEntriesResponse(probeRef, 0, true, 0));
+        client.expectMessage(new ClientMessage.ClientUpdateResponse(true, 1));
     }
 }
