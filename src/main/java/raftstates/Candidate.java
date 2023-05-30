@@ -104,7 +104,7 @@ public class Candidate extends RaftServer {
                     else {
                         handleRequestVoteResponse(msg);
                         if (votesReceived >= votesRequired) {
-                            getContext().getLog().info("ELECTED TO LEADER " + getContext().getSelf().path().uid());
+                            getContext().getLog().info(getContext().getSelf().path().name() + " ELECTED TO LEADER ");
                             sendBufferedRequests(getContext().getSelf());
                             return getLeaderBehavior();
                         }
@@ -116,7 +116,6 @@ public class Candidate extends RaftServer {
                     votesReceived = 0;
                     break;
                 case RaftMessage.ClientUpdateRequest msg:
-                    getContext().getLog().info("RECEIVED CLIENT REQUEST");
                     handleClientRequest(msg);
                     break;
                 case RaftMessage.ClientCommittedReadRequest msg:
@@ -168,10 +167,7 @@ public class Candidate extends RaftServer {
     }
 
     private void handleRequestVoteResponse(RaftMessage.RequestVoteResponse msg) {
-        if (msg.voteGranted() == true){
-            getContext().getLog().info("RECEIVED VOTE");
-            votesReceived++;
-        }
+        if (msg.voteGranted() == true) votesReceived++;
     }
 
     private void handleTestMessage(RaftMessage.TestMessage message) {

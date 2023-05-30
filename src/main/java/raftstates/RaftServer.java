@@ -168,13 +168,10 @@ abstract class RaftServer extends AbstractBehavior<RaftMessage> {
     }
 
     protected boolean isDuplicate(RaftMessage.ClientUpdateRequest msg) {
-        boolean isDuplicate = false;
         for (Entry e : this.log){
-            if (e.command().equals(msg.command())){
-                isDuplicate = true;
-            }
+            if (e.command().equals(msg.command())) return true;
         }
-        return isDuplicate;
+        return false;
     }
 
     protected boolean isLogFullyCommitted() {
@@ -191,8 +188,11 @@ abstract class RaftServer extends AbstractBehavior<RaftMessage> {
     }
 
     protected void sendUncommittedState(RaftMessage.ClientUnstableReadRequest msg) {
+        getContext().getLog().info(getContext().getSelf().path().name() + " Tentative state: " + this.tentativeStateMachine.getState());
+        getContext().getLog().info(getContext().getSelf().path().name() + " Committed state: " +this.stateMachine.getState());
         msg.clientRef().tell(new ClientMessage.ClientUnstableReadResponse<>(this.tentativeStateMachine.getState()));
     }
+
     protected void updateTentativeState(){
         StateMachine tentativeState = this.stateMachine.forkStateMachine();
         List<Entry> uncommittedEntries = this.log.subList(this.commitIndex + 1, this.log.size());

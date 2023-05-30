@@ -15,7 +15,9 @@ import statemachine.CounterCommand;
 import statemachine.TicketCounter;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 public class Orchestrator extends AbstractBehavior<OrchMessage> {
     public static Behavior<OrchMessage> create() {
@@ -32,9 +34,9 @@ public class Orchestrator extends AbstractBehavior<OrchMessage> {
     private final int numServers = 5;
     private final int numClients = 5;
 
-    private final int numTicketRequestsPerClient = 25;
+    private int numTicketRequestsPerClient = 25;
 
-    private final int initialCounterState = 20;
+    private int initialCounterState = 20;
     private List<ActorRef<RaftMessage>> serverRefs;
     private List<ActorRef<ClientMessage>> clientRefs;
     int clientsTerminated;
@@ -98,8 +100,8 @@ public class Orchestrator extends AbstractBehavior<OrchMessage> {
     private void handleStart(OrchMessage.Start start) {
         getContext().getLog().info("[Orchestrator] spawning servers ");
         this.serverRefs = createServers(numServers);
-        getContext().getLog().info("[Orchestrator] spawning clients ");
         sendGroupRefsToServers(this.serverRefs);
+        getContext().getLog().info("[Orchestrator] spawning clients ");
         this.clientRefs = createClients(numClients, this.serverRefs);
         sendRequestQueueToClients(this.clientRefs);
         notifyAllClients(new ClientMessage.AlertWhenFinished(getContext().getSelf()));
@@ -130,16 +132,23 @@ public class Orchestrator extends AbstractBehavior<OrchMessage> {
         return serverRefs;
     }
 
-    private ArrayList<ActorRef<ClientMessage>> createClients(int clientCount, List<ActorRef<RaftMessage>> serverRefs) {
-        ArrayList<ActorRef<ClientMessage>> clientRefs = new ArrayList<>();
+    private List<ActorRef<ClientMessage>> createClients(int clientCount, List<ActorRef<RaftMessage>> serverRefs) {
+        List<ActorRef<ClientMessage>> clientRefs = new ArrayList<>();
         for (int count = 0; count < clientCount; count++){
-            var clientRef = this.getContext().spawn(TicketClient.create(serverRefs,
+            List<ActorRef<RaftMessage>> shuffledServerRefs = getShuffledServerRefs(serverRefs, count);
+            var clientRef = this.getContext().spawn(TicketClient.create(shuffledServerRefs,
                                                                                 serverRefs.get(count)),
                                                                                 "CLIENT_" + count);
             clientRefs.add(clientRef);
             this.getContext().watchWith(clientRef, new OrchMessage.ClientTerminated());
         }
         return clientRefs;
+    }
+
+    private static List<ActorRef<RaftMessage>> getShuffledServerRefs(List<ActorRef<RaftMessage>> serverRefs, int randSeed) {
+        List<ActorRef<RaftMessage>> shuffledServerRefs = new ArrayList<>(serverRefs);
+        Collections.shuffle(shuffledServerRefs, new Random(randSeed));
+        return shuffledServerRefs;
     }
 
     private List<RaftMessage> getRequestList(ActorRef<ClientMessage> clientRef) {

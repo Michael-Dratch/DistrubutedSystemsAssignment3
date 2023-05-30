@@ -137,19 +137,20 @@ public class Leader extends RaftServer {
     }
 
     private void handleClientUpdateRequest(RaftMessage.ClientUpdateRequest msg) {
+        if (isDuplicate(msg)) return; //ignore duplicate requests
         if (updateRequestIsValid(msg))processValidUpdateRequest(msg);
         else msg.clientRef().tell(new ClientMessage.ClientUpdateResponse(false, msg.command().getCommandID()));
     }
 
+
     private void processValidUpdateRequest(RaftMessage.ClientUpdateRequest msg) {
         Entry entry = new Entry(this.currentTerm, msg.command());
-        if (!isDuplicate(msg)) {
-            this.log.add(entry);
-            this.dataManager.saveLog(this.log);
-        }
+        this.log.add(entry);
+        this.dataManager.saveLog(this.log);
         for (ActorRef<RaftMessage> node: groupRefs){
             sendAppendEntriesToFollower(node);
         }
+        updateTentativeState();
     }
 
     private boolean updateRequestIsValid(RaftMessage.ClientUpdateRequest msg) {

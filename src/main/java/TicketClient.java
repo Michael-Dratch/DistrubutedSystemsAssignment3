@@ -10,6 +10,7 @@ import messages.RaftMessage;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 
 public class TicketClient extends AbstractBehavior<ClientMessage> {
@@ -45,7 +46,7 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
     }
 
     private final int requestTimeOutDuration = 500;
-    private final int preferredRetryTimeOutDuration = 2000;
+    private final int preferredRetryTimeOutDuration = 1000;
 
     private List<ActorRef<RaftMessage>> serverRefs;
 
@@ -81,10 +82,10 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
                 this.requestQueue.addAll(msg.requests());
                 break;
             case ClientMessage.ClientCommittedReadResponse msg:
-                handleReadResponse(msg);
+                handleCommittedReadResponse(msg);
                 break;
             case ClientMessage.ClientUnstableReadResponse msg:
-                handleReadResponse(msg);
+                handleUnstableReadResponse(msg);
                 break;
             case ClientMessage.ClientUpdateResponse msg:
                 handleUpdateResponse(msg);
@@ -93,9 +94,12 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
                 this.alertWhenFinished = msg.sender();
                 break;
             case ClientMessage.TimeOut msg:
+                getContext().getLog().info(getContext().getSelf().path().name() + ": REQUEST TIME OUT");
                 handleTimeOut();
                 break;
             case ClientMessage.PreferredRetryTimout msg:
+                getContext().getLog().info(getContext().getSelf().path().name() + ": RETRYING PREFERRED SERVER");
+
                 isPreferredServerActive = true;
                 isRetryingPreferredServer = true;
                 break;
@@ -112,25 +116,27 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
         startRequestTimer();
     }
 
-    private void handleReadResponse(ClientMessage.ClientUnstableReadResponse<Integer> msg) {
+    private void handleUnstableReadResponse(ClientMessage.ClientUnstableReadResponse<Integer> msg) {
+        startRequestTimer();
         if (msg.state() <= 0) {
-            getContext().getLog().info("CLIENT RECEIVED RESPONSE. NO TICKETS LEFT. TERMINATING");
+            getContext().getLog().info(getContext().getSelf().path().name() + ": RECEIVED RESPONSE. NO TICKETS LEFT. TERMINATING");
             shutdown();
         }
         else{
-            getContext().getLog().info("CLIENT RECEIVED UNSTABLE READ RESPONSE. TICKETS: " + msg.state());
+            getContext().getLog().info(getContext().getSelf().path().name() + ": RECEIVED UNSTABLE READ RESPONSE. TICKETS: " + msg.state());
             this.nextRequest++;
             sendNextRequest();
         }
     }
 
-    private void handleReadResponse(ClientMessage.ClientCommittedReadResponse<Integer> msg) {
+    private void handleCommittedReadResponse(ClientMessage.ClientCommittedReadResponse<Integer> msg) {
+        startRequestTimer();
         if (msg.state() <= 0) {
-            getContext().getLog().info("CLIENT RECEIVED RESPONSE. NO TICKETS LEFT. TERMINATING");
+            getContext().getLog().info(getContext().getSelf().path().name() + ": RECEIVED RESPONSE. NO TICKETS LEFT. TERMINATING");
             shutdown();
         }
         else{
-            getContext().getLog().info("CLIENT RECEIVED STABLE READ RESPONSE. TICKETS: " + msg.state());
+            getContext().getLog().info(getContext().getSelf().path().name() +": RECEIVED STABLE READ RESPONSE. TICKETS: " + msg.state());
             this.nextRequest++;
             sendNextRequest();
         }
@@ -138,14 +144,24 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
 
     private void sendNextRequest() {
         if (allRequestsAlreadySent()) shutdown();
-        else if (this.isPreferredServerActive) {
-            getContext().getLog().info("CLIENT: SENDING REQUEST " + this.requestQueue.get(this.nextRequest).toString());
-            this.preferredServer.tell(this.requestQueue.get(this.nextRequest));
-        }
         else {
-            getContext().getLog().info("CLIENT: SENDING REQUEST " + this.requestQueue.get(this.nextRequest).toString());
-            sendRequestToNonPreferredServer();
+            if (this.isPreferredServerActive) {
+                logOutgoingMessageType(this.preferredServer);
+                this.preferredServer.tell(this.requestQueue.get(this.nextRequest));
+            }
+            else {
+                ActorRef<RaftMessage> nextServer = getNextNonPreferredServer().orElse(this.preferredServer);
+                logOutgoingMessageType(nextServer);
+                nextServer.tell(this.requestQueue.get(this.nextRequest));
+            }
         }
+    }
+
+    private void logOutgoingMessageType(ActorRef<RaftMessage> receiver) {
+        getContext().getLog().info(
+                getContext().getSelf().path().name() + ": SENDING " +
+                this.requestQueue.get(this.nextRequest).getClass().getName().substring(21) +
+                " to " + receiver.path().name());
     }
 
     private boolean allRequestsAlreadySent() {
@@ -153,7 +169,9 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
     }
 
     private void handleUpdateResponse(ClientMessage.ClientUpdateResponse msg) {
+        startRequestTimer();
         if (msg.success()) {
+            getContext().getLog().info(getContext().getSelf().path().name() + ": RECEIVED UPDATE SUCCESS RESPONSE");
             this.nextRequest++;
             sendNextRequest();
         }
@@ -166,6 +184,7 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
     private void handleTimeOut() {
         if (isPreferredServerUnresponsive()) {
             isPreferredServerActive = false;
+            getContext().getLog().info("STARTING PREFERRED SERVER TIMER");
             startPreferredServerRetryTimer();
         } else this.nextServerIndex++;
         sendNextRequest();
@@ -181,11 +200,11 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
         getContext().getSelf().tell(new ClientMessage.ShutDown(null));
     }
 
-    private void sendRequestToNonPreferredServer() {
-        if (serverRefs.size() <= 1) return; // no other servers wait for other timer to run out and retry preferred server
+    private Optional<ActorRef<RaftMessage>> getNextNonPreferredServer() {
+        if (serverRefs.size() <= 1) return Optional.empty(); // no other servers wait for other timer to run out and retry preferred server
         if (nextServerIndex >= serverRefs.size()) nextServerIndex = 0;
         if (serverRefs.get(nextServerIndex) == preferredServer) nextServerIndex++;
-        this.serverRefs.get(nextServerIndex).tell(this.requestQueue.get(this.nextRequest));
+        return Optional.ofNullable(this.serverRefs.get(nextServerIndex));
     }
 
     private void startRequestTimer() {

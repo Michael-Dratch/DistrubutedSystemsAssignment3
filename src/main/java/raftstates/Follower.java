@@ -67,19 +67,16 @@ public class Follower extends RaftServer {
                     break;
                 case RaftMessage.TimeOut msg:
                     handleTimeOut();
-                    getContext().getLog().info("TIMEOUT STARTING ELECTION " + getContext().getSelf().path().uid());
+                    getContext().getLog().info(getContext().getSelf().path().name() + ": TIMEOUT STARTING ELECTION " + getContext().getSelf().path().uid());
                     sendBufferedRequestsToSelf();
                     return Candidate.create(this.dataManager, this.stateMachine, this.failFlag, this.TIMER_KEY, this.currentTerm, this.groupRefs, this.commitIndex, this.lastApplied);
                 case RaftMessage.ClientUpdateRequest msg:
-                    getContext().getLog().info("RECEIVED CLIENT UPDATE REQUEST");
                     handleClientUpdateRequest(msg);
                     break;
                 case RaftMessage.ClientCommittedReadRequest msg:
-                    getContext().getLog().info("RECEIVED CLIENT STABLE READ REQUEST");
                     handleClientCommittedReadRequest(msg);
                     break;
                 case RaftMessage.ClientUnstableReadRequest msg:
-                    getContext().getLog().info("RECEIVED CLIENT UNSTABLE READ REQUEST");
                     handleUnstableReadRequest(msg);
                     break;
                 case RaftMessage.TestMessage msg:
