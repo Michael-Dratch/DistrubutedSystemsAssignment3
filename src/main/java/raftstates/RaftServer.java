@@ -188,8 +188,6 @@ abstract class RaftServer extends AbstractBehavior<RaftMessage> {
     }
 
     protected void sendUncommittedState(RaftMessage.ClientUnstableReadRequest msg) {
-        getContext().getLog().info(getContext().getSelf().path().name() + " Tentative state: " + this.tentativeStateMachine.getState());
-        getContext().getLog().info(getContext().getSelf().path().name() + " Committed state: " +this.stateMachine.getState());
         msg.clientRef().tell(new ClientMessage.ClientUnstableReadResponse<>(this.tentativeStateMachine.getState()));
     }
 

@@ -119,8 +119,8 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
     private void handleUnstableReadResponse(ClientMessage.ClientUnstableReadResponse<Integer> msg) {
         startRequestTimer();
         if (msg.state() <= 0) {
-            getContext().getLog().info(getContext().getSelf().path().name() + ": RECEIVED RESPONSE. NO TICKETS LEFT. TERMINATING");
-            shutdown();
+            getContext().getLog().info(getContext().getSelf().path().name() + ": RECEIVED RESPONSE. NO TICKETS LEFT. STOPPING REQUESTS");
+            stopRequests();
         }
         else{
             getContext().getLog().info(getContext().getSelf().path().name() + ": RECEIVED UNSTABLE READ RESPONSE. TICKETS: " + msg.state());
@@ -132,8 +132,8 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
     private void handleCommittedReadResponse(ClientMessage.ClientCommittedReadResponse<Integer> msg) {
         startRequestTimer();
         if (msg.state() <= 0) {
-            getContext().getLog().info(getContext().getSelf().path().name() + ": RECEIVED RESPONSE. NO TICKETS LEFT. TERMINATING");
-            shutdown();
+            getContext().getLog().info(getContext().getSelf().path().name() + ": RECEIVED RESPONSE. NO TICKETS LEFT. STOPPING REQUESTS");
+            stopRequests();
         }
         else{
             getContext().getLog().info(getContext().getSelf().path().name() +": RECEIVED STABLE READ RESPONSE. TICKETS: " + msg.state());
@@ -143,8 +143,8 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
     }
 
     private void sendNextRequest() {
-        if (allRequestsAlreadySent()) shutdown();
-        else {
+        if (allRequestsAlreadySent()) stopRequests();
+        if (!allRequestsAlreadySent()) {
             if (this.isPreferredServerActive) {
                 logOutgoingMessageType(this.preferredServer);
                 this.preferredServer.tell(this.requestQueue.get(this.nextRequest));
@@ -155,6 +155,11 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
                 nextServer.tell(this.requestQueue.get(this.nextRequest));
             }
         }
+        if (isNextMessageTestFailure()) this.nextRequest++;
+    }
+
+    private boolean isNextMessageTestFailure() {
+        return this.requestQueue.get(this.nextRequest).getClass() == RaftMessage.Failure.class;
     }
 
     private void logOutgoingMessageType(ActorRef<RaftMessage> receiver) {
@@ -171,13 +176,12 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
     private void handleUpdateResponse(ClientMessage.ClientUpdateResponse msg) {
         startRequestTimer();
         if (msg.success()) {
-            getContext().getLog().info(getContext().getSelf().path().name() + ": RECEIVED UPDATE SUCCESS RESPONSE");
             this.nextRequest++;
             sendNextRequest();
         }
         else {
-            getContext().getLog().info("CLIENT RECEIVED UPDATE RESPONSE. FAILED. TERMINATING");
-            shutdown();
+            getContext().getLog().info("CLIENT RECEIVED UPDATE RESPONSE. FAILED. STOPPING REQUESTS");
+            this.stopRequests();
         }
     }
 
@@ -194,6 +198,12 @@ public class TicketClient extends AbstractBehavior<ClientMessage> {
 
     private boolean isPreferredServerUnresponsive() {
         return isPreferredServerActive && !isRetryingPreferredServer;
+    }
+
+    private void stopRequests() {
+        this.requestQueue.clear();
+        this.timer.cancel(this.REQUEST_TIMER_KEY);
+        this.timer.cancel(this.PREFERRED_RETRY_TIMER_KEY);
     }
 
     private void shutdown() {
