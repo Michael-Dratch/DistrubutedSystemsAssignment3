@@ -103,7 +103,7 @@ public class Orchestrator extends AbstractBehavior<OrchMessage> {
         sendGroupRefsToServers(this.serverRefs);
         getContext().getLog().info("[Orchestrator] spawning clients ");
         this.clientRefs = createClients(numClients, this.serverRefs);
-        sendRequestQueueToClientsWithFailures(this.clientRefs);
+        sendRequestQueueToClients(this.clientRefs);
         notifyAllClients(new ClientMessage.AlertWhenFinished(getContext().getSelf()));
         getContext().getLog().info("[Orchestrator] starting servers");
         notifyAllServers(new RaftMessage.Start());
@@ -163,7 +163,7 @@ public class Orchestrator extends AbstractBehavior<OrchMessage> {
     private List<RaftMessage> getRequestList(ActorRef<ClientMessage> clientRef) {
         List<RaftMessage> requests = new ArrayList<>();
         for (int i = 0; i < this.numTicketRequestsPerClient; i++){
-            addUpdateRequests(clientRef, requests, i,5);
+            addUpdateRequests(clientRef, requests, i,10);
             requests.add(new RaftMessage.ClientUnstableReadRequest(clientRef));
             requests.add(new RaftMessage.ClientCommittedReadRequest(clientRef));
         }
@@ -173,7 +173,7 @@ public class Orchestrator extends AbstractBehavior<OrchMessage> {
     private List<RaftMessage> getRequestListWithFailures(ActorRef<ClientMessage> clientRef) {
         List<RaftMessage> requests = new ArrayList<>();
         for (int i = 0; i < this.numTicketRequestsPerClient; i++){
-            addUpdateRequests(clientRef, requests, i,5);
+            addUpdateRequests(clientRef, requests, i,10);
             if (i % 8 == 0) requests.add(new RaftMessage.Failure());
             requests.add(new RaftMessage.ClientUnstableReadRequest(clientRef));
             requests.add(new RaftMessage.ClientCommittedReadRequest(clientRef));
